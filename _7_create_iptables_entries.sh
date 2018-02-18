@@ -69,8 +69,14 @@ done
 # prepend a rule that accepts all outgoing traffic, if not already present:
 $IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I INPUT 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
 
-# append a reject any, if not already present:
-$IPTABLES -L INPUT --line-numbers -n | grep "REJECT" | grep -q "0\.0\.0\.0\/0[ \t]*0\.0\.0\.0\/0" || $IPTABLES -A INPUT -j REJECT --reject-with icmp-host-prohibited
+# append a reject any with logging, if not already present:
+if ! $IPTABLES -L INPUT --line-numbers -n | grep "REJECT" | grep -q "0\.0\.0\.0\/0[ \t]*0\.0\.0\.0\/0"; then
+   # we filter SSH login attempts without logging:
+   $IPTABLES -A INPUT -s 0.0.0.0/0 -p TCP --dport 22 -j REJECT
+   # we filter the rest with logging:
+   $IPTABLES -A INPUT -s 0.0.0.0/0 -j LOG --log-prefix "iptables:REJECT all: "
+   $IPTABLES -A INPUT -j REJECT --reject-with icmp-host-prohibited
+fi
 
 # prepend an allow any from loopback: 
 $IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "127\.0\.0\.0\/8" || $IPTABLES -I INPUT 1 -s 127.0.0.0/8 -j ACCEPT
