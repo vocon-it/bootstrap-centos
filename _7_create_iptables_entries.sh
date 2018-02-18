@@ -2,15 +2,18 @@
 
 USAGE="Usage: $0 dyndns-name1 dyndns-name2 ... dyndns-nameN"
 
-[ "$DYNDNSNAME" == "" ] && DYNDNSNAME=vocon-home.mooo.com
+#[ "$DYNDNSNAME" == "" ] && DYNDNSNAME=vocon-home.mooo.com
+DEBUG=
 
 if [ "$#" == "0" ]; then
 	echo "$USAGE"
 	exit 1
 fi
 
-yum list installed | grep bind-utils || yum install -y bind-utils
+IPTABLES=/usr/sbin/iptables
+yum list installed | grep bind-utils 1>/dev/null || yum install -y bind-utils
 
+date
 while (( "$#" )); do
 
   DYNDNSNAME=$1
@@ -20,8 +23,7 @@ while (( "$#" )); do
   re='^(0*(1?[0-9]{1,2}|2([0-4][0-9]|5[0-5]))\.){3}'
     re+='0*(1?[0-9]{1,2}|2([0-4][0-9]|5[0-5]))$'
   [[ $DYNDNSNAME =~ $re ]] && ISIP=true || ISIP=false
-  echo DYNDNSNAME=$DYNDNSNAME
-  echo ISIP=$ISIP
+  [ "$DEBUG" == "true" ] && echo DYNDNSNAME=$DYNDNSNAME
 
   if [ "$ISIP" == "true" ]; then
     Current_IP=$DYNDNSNAME
@@ -29,23 +31,34 @@ while (( "$#" )); do
     Current_IP=$(host $DYNDNSNAME | cut -f4 -d' ')
   fi
 
+  # Current_IP
   Current_IP=$Current_IP
+  [ "$DEBUG" == "true" ] && echo Current_IP=$Current_IP
 
-  if [ ! -e $LAST_IP_FILE ] ; then
-    iptables -I INPUT -i eth0 -s $Current_IP -j ACCEPT
-    echo $Current_IP > $LAST_IP_FILE
+  # Old_IP
+  [ -e $LAST_IP_FILE ] && Old_IP=$(cat $LAST_IP_FILE) || unset Old_IP
+  [ "$DEBUG" == "true" ] && echo Old_IP=$Old_IP
+
+  # FOUND_IPTABLES_ENTRY
+  [ "$Old_IP" != "" ] && FOUND_IPTABLES_ENTRY="$($IPTABLES -L INPUT -n | grep $Old_IP)" || unset FOUND_IPTABLES_ENTRY
+  [ "$DEBUG" == "true" ] && echo FOUND_IPTABLES_ENTRY=$FOUND_IPTABLES_ENTRY
+ 
+  if [ "$FOUND_IPTABLES_ENTRY" == "" ] ; then     
+    # not found in iptables. Create Entry:
+    $IPTABLES -I INPUT -i eth0 -s $Current_IP -j ACCEPT \
+      && echo $Current_IP > $LAST_IP_FILE \
+      && echo "$(basename $0): $DYNDNSNAME: iptables new entry added: 'iptables -I INPUT $LINE_NUMBER -i eth0 -s $Current_IP -j ACCEPT'"
   else 
-    Old_IP=$(cat $LAST_IP_FILE)
+    # found in iptables. Compare Current_IP with Old_IP:
 
     if [ "$Current_IP" == "$Old_IP" ] ; then
-      echo IP address has not changed
+      echo "$(basename $0): $DYNDNSNAME: IP address $Current_IP has not changed"
     else
-      LINE_NUMBER=$(iptables -L INPUT --line-numbers -n | grep $Old_IP | awk '{print $1}')
-      iptables -D INPUT -i eth0 -s $Old_IP -j ACCEPT
-      iptables -I INPUT $LINE_NUMBER -i eth0 -s $Current_IP -j ACCEPT
-      /etc/init.d/iptables save
-      echo $Current_IP > $LAST_IP_FILE
-      echo iptables have been updated
+      LINE_NUMBER=$($IPTABLES -L INPUT --line-numbers -n | grep $Old_IP | awk '{print $1}') \
+        && $IPTABLES -D INPUT -i eth0 -s $Old_IP -j ACCEPT
+      $IPTABLES -I INPUT $LINE_NUMBER -i eth0 -s $Current_IP -j ACCEPT \
+        && echo $Current_IP > $LAST_IP_FILE \
+        && echo "$(basename $0): $DYNDNSNAME: iptables have been updated with 'iptables -I INPUT $LINE_NUMBER -i eth0 -s $Current_IP -j ACCEPT'"
     fi
   fi
 
@@ -54,7 +67,7 @@ shift
 done
 
 # prepend a rule that accepts all outgoing traffic, if not already present:
-iptables -L INPUT --line-numbers -n | grep "ACCEPT" | grep "state RELATED,ESTABLISHED" || iptables -I INPUT 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I INPUT 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
 
 # append a reject any, if not already present:
-iptables -L INPUT --line-numbers -n | grep "REJECT" | grep "0\.0\.0\.0\/0[ \t]*0\.0\.0\.0\/0" || iptables -A INPUT -j REJECT --reject-with icmp-host-prohibited
+$IPTABLES -L INPUT --line-numbers -n | grep "REJECT" | grep -q "0\.0\.0\.0\/0[ \t]*0\.0\.0\.0\/0" || $IPTABLES -A INPUT -j REJECT --reject-with icmp-host-prohibited
