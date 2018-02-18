@@ -45,9 +45,9 @@ while (( "$#" )); do
  
   if [ "$FOUND_IPTABLES_ENTRY" == "" ] ; then     
     # not found in iptables. Create Entry:
-    $IPTABLES -I INPUT -i eth0 -s $Current_IP -j ACCEPT \
+    $IPTABLES -I INPUT -s $Current_IP -j ACCEPT \
       && echo $Current_IP > $LAST_IP_FILE \
-      && echo "$(basename $0): $DYNDNSNAME: iptables new entry added: 'iptables -I INPUT $LINE_NUMBER -i eth0 -s $Current_IP -j ACCEPT'"
+      && echo "$(basename $0): $DYNDNSNAME: iptables new entry added: 'iptables -I INPUT $LINE_NUMBER -s $Current_IP -j ACCEPT'"
   else 
     # found in iptables. Compare Current_IP with Old_IP:
 
@@ -55,10 +55,10 @@ while (( "$#" )); do
       echo "$(basename $0): $DYNDNSNAME: IP address $Current_IP has not changed"
     else
       LINE_NUMBER=$($IPTABLES -L INPUT --line-numbers -n | grep $Old_IP | awk '{print $1}') \
-        && $IPTABLES -D INPUT -i eth0 -s $Old_IP -j ACCEPT
-      $IPTABLES -I INPUT $LINE_NUMBER -i eth0 -s $Current_IP -j ACCEPT \
+        && $IPTABLES -D INPUT -s $Old_IP -j ACCEPT
+      $IPTABLES -I INPUT $LINE_NUMBER -s $Current_IP -j ACCEPT \
         && echo $Current_IP > $LAST_IP_FILE \
-        && echo "$(basename $0): $DYNDNSNAME: iptables have been updated with 'iptables -I INPUT $LINE_NUMBER -i eth0 -s $Current_IP -j ACCEPT'"
+        && echo "$(basename $0): $DYNDNSNAME: iptables have been updated with 'iptables -I INPUT $LINE_NUMBER -s $Current_IP -j ACCEPT'"
     fi
   fi
 
@@ -71,3 +71,6 @@ $IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ES
 
 # append a reject any, if not already present:
 $IPTABLES -L INPUT --line-numbers -n | grep "REJECT" | grep -q "0\.0\.0\.0\/0[ \t]*0\.0\.0\.0\/0" || $IPTABLES -A INPUT -j REJECT --reject-with icmp-host-prohibited
+
+# prepend an allow any 
+$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "127\.0\.0\.0\/8" || $IPTABLES -I INPUT 1 -s 127.0.0.0/8 -j ACCEPT
