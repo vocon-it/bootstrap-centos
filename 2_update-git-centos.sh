@@ -6,9 +6,7 @@ cd /root/git
 wget "https://www.kernel.org/pub/software/scm/git/git-${GIT_VERSION}.tar.gz"
 tar xvzf "git-${GIT_VERSION}.tar.gz"
 cd git-${GIT_VERSION}
-make prefix=/usr/local all
-make prefix=/usr/local install
-yum remove -y git
-cat /etc/bashrc | grep "PATH" | grep -qv '/usr/local/bin' && echo "export PATH=$PATH:/usr/local/bin" >> /etc/bashrc
-source /etc/bashrc
+make prefix=/usr all
+make prefix=/usr install
+#yum remove -y git
 git --version # should be GIT_VERSION
