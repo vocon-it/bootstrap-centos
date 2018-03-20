@@ -28,7 +28,7 @@ while (( "$#" )); do
   if [ "$ISIP" == "true" ]; then
     Current_IP=$DYNDNSNAME
   else
-    Current_IP=$(host $DYNDNSNAME | cut -f4 -d' ')
+    Current_IP="$(host $DYNDNSNAME | grep 'address' | cut -f4 -d' ')"
   fi
 
   # Current_IP
