@@ -1,4 +1,4 @@
-sudo yum remove git
+yum remove -y git
 yum install -y curl-devel expat-devel gettext-devel openssl-devel zlib-devel gcc perl-ExtUtils-MakeMaker wget
 [ "$GIT_VERSION" == "" ] && export GIT_VERSION=2.14.2
 mkdir /root/git
