@@ -25,7 +25,7 @@ done
 
 systemctl reload sshd
 
-read -p "Please test now, whether an SSH connection and sudo is still possible. Everything working? (no)> " answer
+read -p "Please test now, whether an SSH connection as non-privileged user and 'sudo su -' is (still) possible. Everything working? (no)> " answer
 
 if [ "$answer" != "y" -a "$answer" != "yes" ]; then
   echo rolling back
