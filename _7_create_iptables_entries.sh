@@ -66,6 +66,16 @@ shift
 
 done
 
+# prepend rules that accept traffic from private addresses:
+LOCAL_IP_NETWORK_LIST="10.0.0.0/8 192.168.0.0/16"
+for LOCAL_IP_NETWORK in $LOCAL_IP_NETWORK_LIST; do
+  # echo LOCAL_IP_NETWORK=$LOCAL_IP_NETWORK
+  if echo $LOCAL_IP_NETWORK | grep "^[1-9][0-9]\{0,2\}\."; then
+    # this is an IPv4 address
+    $IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q $LOCAL_IP_NETWORK ||  $IPTABLES -I INPUT 1 -s "$LOCAL_IP_NETWORK" -j ACCEPT
+  fi
+done
+
 # prepend rules that accept traffic from own addresses:
 LOCAL_IP_LIST=$(hostname -I)
 for LOCAL_IP in $LOCAL_IP_LIST; do
