@@ -87,8 +87,13 @@ for LOCAL_IP in $LOCAL_IP_LIST; do
 done
 
 # prepend rules that accepts all incoming web traffic:
-$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:80 " || $IPTABLES -I INPUT 1 -p tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
-$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:443 " || $IPTABLES -I INPUT 1 -p tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+#$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:80 " || $IPTABLES -I INPUT 1 -p tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+#$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:443 " || $IPTABLES -I INPUT 1 -p tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+
+for PORT in 80 443; do
+  LINE_NUMBER=$($IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep "dpt:80 " | head -n 1 | awk '{print $1}')
+  [ "$LINE_NUMBER" != "" ] && $IPTABLES -D INPUT $LINE_NUMBER
+done
 
 # prepend a rule that accepts all outgoing traffic, if not already present:
 $IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I INPUT 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
