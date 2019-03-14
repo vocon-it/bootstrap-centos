@@ -90,9 +90,12 @@ done
 #$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:80 " || $IPTABLES -I INPUT 1 -p tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
 #$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:443 " || $IPTABLES -I INPUT 1 -p tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
 
+# disable web access:
 for PORT in 80 443; do
-  LINE_NUMBER=$($IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep "dpt:80 " | head -n 1 | awk '{print $1}')
+  LINE_NUMBER=$($IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep "dpt:$PORT " | head -n 1 | awk '{print $1}')
   [ "$LINE_NUMBER" != "" ] && $IPTABLES -D INPUT $LINE_NUMBER
+
+  $IPTABLES -L INPUT --line-numbers -n | grep "DROP" | grep -q "dpt:80 " || $IPTABLES -I INPUT 1 -p tcp --dport 80 -j DROP
 done
 
 # prepend a rule that accepts all outgoing traffic, if not already present:
