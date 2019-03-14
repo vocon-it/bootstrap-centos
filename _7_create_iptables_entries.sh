@@ -53,7 +53,7 @@ while (( "$#" )); do
       # found in iptables. Compare Current_IP with Old_IP:
   
       if [ "$Current_IP" == "$Old_IP" ] ; then
-        echo "$(basename $0): $DYNDNSNAME: IP address $Current_IP has not changed"
+        echo "$(basename $0): $DYNDNSNAME: IP address $Current_IP has not changed for CHAIN=$CHAIN"
       else
         LINE_NUMBER=$($IPTABLES -L $CHAIN --line-numbers -n | grep $Old_IP | awk '{print $1}') \
           && $IPTABLES -D $CHAIN -s $Old_IP -j ACCEPT
