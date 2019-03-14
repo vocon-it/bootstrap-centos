@@ -35,32 +35,34 @@ while (( "$#" )); do
   Current_IP=$Current_IP
   [ "$DEBUG" == "true" ] && echo Current_IP=$Current_IP
 
-  # Old_IP
-  [ -e $LAST_IP_FILE ] && Old_IP=$(cat $LAST_IP_FILE) || unset Old_IP
-  [ "$DEBUG" == "true" ] && echo Old_IP=$Old_IP
-
-  # FOUND_IPTABLES_ENTRY
-  [ "$Old_IP" != "" ] && FOUND_IPTABLES_ENTRY="$($IPTABLES -L INPUT -n | grep $Old_IP)" || unset FOUND_IPTABLES_ENTRY
-  [ "$DEBUG" == "true" ] && echo FOUND_IPTABLES_ENTRY=$FOUND_IPTABLES_ENTRY
- 
-  if [ "$FOUND_IPTABLES_ENTRY" == "" ] ; then     
-    # not found in iptables. Create Entry:
-    $IPTABLES -I INPUT -s $Current_IP -j ACCEPT \
-      && echo $Current_IP > $LAST_IP_FILE \
-      && echo "$(basename $0): $DYNDNSNAME: iptables new entry added: 'iptables -I INPUT $LINE_NUMBER -s $Current_IP -j ACCEPT'"
-  else 
-    # found in iptables. Compare Current_IP with Old_IP:
-
-    if [ "$Current_IP" == "$Old_IP" ] ; then
-      echo "$(basename $0): $DYNDNSNAME: IP address $Current_IP has not changed"
-    else
-      LINE_NUMBER=$($IPTABLES -L INPUT --line-numbers -n | grep $Old_IP | awk '{print $1}') \
-        && $IPTABLES -D INPUT -s $Old_IP -j ACCEPT
-      $IPTABLES -I INPUT $LINE_NUMBER -s $Current_IP -j ACCEPT \
-        && echo $Current_IP > $LAST_IP_FILE \
-        && echo "$(basename $0): $DYNDNSNAME: iptables have been updated with 'iptables -I INPUT $LINE_NUMBER -s $Current_IP -j ACCEPT'"
+  for CHAIN in INPUT FORWARD; do
+    # Old_IP
+    [ -e ${LAST_IP_FILE}_$CHAIN ] && Old_IP=$(cat ${LAST_IP_FILE}_$CHAIN) || unset Old_IP
+    [ "$DEBUG" == "true" ] && echo Old_IP=$Old_IP
+  
+    # FOUND_IPTABLES_ENTRY
+    [ "$Old_IP" != "" ] && FOUND_IPTABLES_ENTRY="$($IPTABLES -L $CHAIN -n | grep $Old_IP)" || unset FOUND_IPTABLES_ENTRY
+    [ "$DEBUG" == "true" ] && echo FOUND_IPTABLES_ENTRY=$FOUND_IPTABLES_ENTRY
+   
+    if [ "$FOUND_IPTABLES_ENTRY" == "" ] ; then     
+      # not found in iptables. Create Entry:
+      $IPTABLES -I $CHAIN -s $Current_IP -j ACCEPT \
+        && echo $Current_IP > ${LAST_IP_FILE}_$CHAIN \
+        && echo "$(basename $0): $DYNDNSNAME: iptables new entry added: 'iptables -I $CHAIN $LINE_NUMBER -s $Current_IP -j ACCEPT'"
+    else 
+      # found in iptables. Compare Current_IP with Old_IP:
+  
+      if [ "$Current_IP" == "$Old_IP" ] ; then
+        echo "$(basename $0): $DYNDNSNAME: IP address $Current_IP has not changed"
+      else
+        LINE_NUMBER=$($IPTABLES -L $CHAIN --line-numbers -n | grep $Old_IP | awk '{print $1}') \
+          && $IPTABLES -D $CHAIN -s $Old_IP -j ACCEPT
+        $IPTABLES -I $CHAIN $LINE_NUMBER -s $Current_IP -j ACCEPT \
+          && echo $Current_IP > ${LAST_IP_FILE}_$CHAIN \
+          && echo "$(basename $0): $DYNDNSNAME: iptables have been updated with 'iptables -I $CHAIN $LINE_NUMBER -s $Current_IP -j ACCEPT'"
+      fi
     fi
-  fi
+  done
 
 shift
 
@@ -95,8 +97,11 @@ for PORT in 80 443; do
   LINE_NUMBER=$($IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep "dpt:$PORT " | head -n 1 | awk '{print $1}')
   [ "$LINE_NUMBER" != "" ] && $IPTABLES -D INPUT $LINE_NUMBER
 
-  $IPTABLES -L INPUT --line-numbers -n | grep "DROP" | grep -q "dpt:80 " || $IPTABLES -I INPUT 1 -p tcp --dport 80 -j DROP
 done
+$IPTABLES -L INPUT --line-numbers -n | grep "DROP" | grep -q "dpt:80$" || echo adding DROP rule for port 80 on INPUT
+$IPTABLES -L INPUT --line-numbers -n | grep "DROP" | grep -q "dpt:80$" || $IPTABLES -I INPUT 1 -p tcp --dport 80 -j DROP
+$IPTABLES -L FORWARD --line-numbers -n | grep "DROP" | grep -q "dpt:80$" || echo adding DROP rule for port 80 on FORWARD
+$IPTABLES -L FORWARD --line-numbers -n | grep "DROP" | grep -q "dpt:80$" || $IPTABLES -I FORWARD 1 -p tcp --dport 80 -j DROP
 
 # prepend a rule that accepts all outgoing traffic, if not already present:
 $IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I INPUT 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
