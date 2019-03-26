@@ -3,7 +3,7 @@
 USAGE="Usage: $0 dyndns-name1 dyndns-name2 ... dyndns-nameN"
 
 #[ "$DYNDNSNAME" == "" ] && DYNDNSNAME=vocon-home.mooo.com
-DEBUG=
+DEBUG=true
 
 if [ "$#" == "0" ]; then
 	echo "$USAGE"
@@ -31,8 +31,9 @@ while (( "$#" )); do
     Current_IP="$(host $DYNDNSNAME | grep 'address' | cut -f4 -d' ')"
   fi
 
+  [[ ! $Current_IP =~ $re ]] && echo "ERROR: Cannot find IP address for FQDN=$DYNDNSNAME! Exiting ..." &&  exit 1
+
   # Current_IP
-  Current_IP=$Current_IP
   [ "$DEBUG" == "true" ] && echo Current_IP=$Current_IP
 
   for CHAIN in INPUT FORWARD; do
@@ -55,9 +56,14 @@ while (( "$#" )); do
       if [ "$Current_IP" == "$Old_IP" ] ; then
         echo "$(basename $0): $DYNDNSNAME: IP address $Current_IP has not changed for CHAIN=$CHAIN"
       else
-        LINE_NUMBER=$($IPTABLES -L $CHAIN --line-numbers -n | grep $Old_IP | awk '{print $1}') \
-          && $IPTABLES -D $CHAIN -s $Old_IP -j ACCEPT
-        $IPTABLES -I $CHAIN $LINE_NUMBER -s $Current_IP -j ACCEPT \
+        # for the case that the same IP address is found more than one time, we remove all occurences (from high to low line number)
+        LINE_NUMBERS=$($IPTABLES -L $CHAIN --line-numbers -n | grep $Old_IP | awk '{print $1}') \
+          && LINE_NUMBER_LOWEST=$(echo $LINE_NUMBERS | awk '{print $1}') \
+          && REVERSE_LINE_NUMBERS=$(echo $LINE_NUMBERS | sed 's/ /\n/g' | tac | tr '\n' ' ') \
+          && echo REVERSE_LINE_NUMBERS=$REVERSE_LINE_NUMBERS \
+          && for line in $REVERSE_LINE_NUMBERS; do echo removing line $line; $IPTABLES -D $CHAIN $line; done
+        # the lowest line number will be replaced by the new IP address:
+        $IPTABLES -I $CHAIN $LINE_NUMBER_LOWEST -s $Current_IP -j ACCEPT \
           && echo $Current_IP > ${LAST_IP_FILE}_$CHAIN \
           && echo "$(basename $0): $DYNDNSNAME: iptables have been updated with 'iptables -I $CHAIN $LINE_NUMBER -s $Current_IP -j ACCEPT'"
       fi
