@@ -1,11 +1,18 @@
 #!/bin/sh
 
-if [ $# -ne 1 ]; then
-    echo "usage: $0 USER"
-    exit 1
+if [ $# -eq 0 ]; then
+    USER=centos
+else 
+    if [ $# -eq 1 ]; then
+        USER=$1
+    else
+        echo "usage: $0 [USER]"
+        echo "       default user is centos"
+        exit 1
+    fi
 fi
 
-USER=$1
+echo "Creating user $USER"
 
 # create user, if it does not exist:
 if cut -d: -f1 /etc/passwd | grep -q -E "^${USER}$"; then
