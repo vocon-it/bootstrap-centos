@@ -27,3 +27,6 @@ read -t 10 -p "Is this a DC/OS installation? (no) > " answer
 
 # run _7xxx.sh:
 $(cd $(dirname $0); pwd)/_$(basename $0) $ADDIP
+
+# remove duplicate entries:
+$(cd $(dirname $0); pwd)/_7_2_remove_duplicate_iptable_entries.sh
