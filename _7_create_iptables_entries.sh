@@ -107,8 +107,8 @@ for CHAIN in INPUT FORWARD; do
     LINE_NUMBER=$($IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep "dpt:$PORT " | head -n 1 | awk '{print $1}')
     [ "$LINE_NUMBER" != "" ] && echo "Removing ACCEPT rule for port ${PORT}" && $IPTABLES -D ${CHAIN} $LINE_NUMBER
 
-    KUBE_LINE_NUMBER=$($IPTABLES -L ${CHAIN} --line-numbers -n | egrep "^[0-9]+[ ]+KUBE-" | head -n 1 | awk '{print $1}')
-    [ "$KUBE_LINE_NUMBER" == "" ] && DROP_LINE_NUMBER=1 || DROP_LINE_NUMBER="$KUBE_LINE_NUMBER"
+    WEAVE_LINE_NUMBER=$($IPTABLES -L ${CHAIN} --line-numbers -n | egrep "^[0-9]+[ ]+WEAVE-" | head -n 1 | awk '{print $1}')
+    [ "$WEAVE_LINE_NUMBER" == "" ] && DROP_LINE_NUMBER=1 || DROP_LINE_NUMBER="$WEAVE_LINE_NUMBER"
     if ! $IPTABLES -L ${CHAIN} --line-numbers -n | grep "DROP" | grep -q "dpt:${PORT}$"; then
       echo adding DROP rule for port ${PORT} on ${CHAIN}
       $IPTABLES -I ${CHAIN} $DROP_LINE_NUMBER -p tcp --dport ${PORT} -j DROP
