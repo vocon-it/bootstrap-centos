@@ -10,6 +10,7 @@ if ! crontab -l | grep "$NEWJOB" ; then
 
    #install new cron file
    crontab mycron
+   echo "Installed Job '$NEWJOB'"
 else
    echo "Job was installed already"
 fi
