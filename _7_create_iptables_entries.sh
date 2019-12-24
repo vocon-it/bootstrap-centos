@@ -124,7 +124,12 @@ done
 $IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I INPUT 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
 
 # prepend a rule that accepts all traffic from local Docker containers, if not already present:
-$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I INPUT -s "172.17.0.0/16" -j ACCEPT
+$IPTABLES -L INPUT   --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I INPUT   -s "172.17.0.0/16" -j ACCEPT
+$IPTABLES -L FORWARD --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I FORWARD -s "172.17.0.0/16" -j ACCEPT
+
+# prepend a rule that accepts all traffic from Kubernetes Weave containers, if not already present:
+$IPTABLES -L INPUT   --line-numbers -n | grep "ACCEPT" | grep -q "10.44.0.0/16" || $IPTABLES -I INPUT   -s "10.44.0.0/16" -j ACCEPT
+$IPTABLES -L FORWARD --line-numbers -n | grep "ACCEPT" | grep -q "10.44.0.0/16" || $IPTABLES -I FORWARD -s "10.44.0.0/16" -j ACCEPT
 
 # append a reject any with logging, if not already present:
 if ! $IPTABLES -L INPUT --line-numbers -n | grep "REJECT" | grep -q "0\.0\.0\.0\/0[ \t]*0\.0\.0\.0\/0"; then
