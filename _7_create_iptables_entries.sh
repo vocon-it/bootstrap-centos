@@ -114,7 +114,7 @@ for CHAIN in INPUT FORWARD; do
 
     if ! $IPTABLES -L ${CHAIN} --line-numbers -n | grep "DROP" | grep -q "dpt:${PORT}$"; then
       echo adding DROP rule for port ${PORT} on ${CHAIN}
-#      $IPTABLES -I ${CHAIN} $DROP_LINE_NUMBER -p tcp --dport ${PORT} -j DROP
+      $IPTABLES -I ${CHAIN} $DROP_LINE_NUMBER -p tcp --dport ${PORT} -j DROP
     fi
 
   done
