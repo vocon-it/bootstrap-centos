@@ -26,8 +26,6 @@ if [ "$IP" == "-d" ]; then
   sudo iptables -t raw -D PREROUTING 1
   sudo iptables -t raw -D PREROUTING 1
   echo "tracing is disabled now"
-  sudo iptables -t raw -L PREROUTING --line-numbers
-  sudo iptables -t raw -L OUTPUT --line-numbers
 else
   if [ "$IP" != "" ]; then
     # activate logging:
@@ -43,8 +41,8 @@ else
   fi
 fi
 
-if [ "$IP" != "" ]; then
+#if [ "$IP" != "" ]; then
   echo "AFTER:"
-  sudo iptables -t raw -L PREROUTING
-  sudo iptables -t raw -L OUTPUT
-fi
+  sudo iptables -t raw -n -L PREROUTING --line-numbers
+  sudo iptables -t raw -n -L OUTPUT --line-numbers
+#fi
