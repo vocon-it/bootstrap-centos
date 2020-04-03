@@ -2,7 +2,7 @@
 
 if [ "$#" == "0" ]; then
   MY_IP=$(echo $SSH_CLIENT | awk '{ print $1}')
-  ADDIP="$MY_IP grodrigues.vocon-it.com ganesh.vocon-it.com vocon-home.mooo.com dev-master1.vocon-it.com dev-node1.vocon-it.com dev-node2.vocon-it.com"
+  ADDIP="$MY_IP grodrigues.vocon-it.com ganesh.vocon-it.com vocon-home.mooo.com dev-master1.vocon-it.com dev-node1.vocon-it.com dev-node2.vocon-it.com static.254.247.47.78.clients.your-server.de"
 else
   ADDIP="$@"
 fi
