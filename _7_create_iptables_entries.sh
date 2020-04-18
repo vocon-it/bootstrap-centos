@@ -14,6 +14,11 @@ IPTABLES=/usr/sbin/iptables
 yum list installed | grep bind-utils 1>/dev/null || yum install -y bind-utils
 
 date
+
+for CHAIN in CUSTOM-ACCEPT CUSTOM-DROP; do
+  $IPTABLES -n -L "$CHAIN" 2>&1 1>/dev/null || echo "$IPTABLES -N $CHAIN"
+done
+
 while (( "$#" )); do
 
   DYNDNSNAME=$1
