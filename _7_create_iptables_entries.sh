@@ -16,7 +16,7 @@ yum list installed | grep bind-utils 1>/dev/null || yum install -y bind-utils
 date
 
 for CHAIN in CUSTOM-ACCEPT CUSTOM-DROP; do
-  $IPTABLES -n -L "$CHAIN" 2>/dev/null 1>/dev/null || echo "$IPTABLES -N $CHAIN"
+  $IPTABLES -n -L "$CHAIN" 2>/dev/null 1>/dev/null || ( $IPTABLES -N $CHAIN && echo $CHAIN created )
 done
 
 while (( "$#" )); do
