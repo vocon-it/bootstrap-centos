@@ -100,7 +100,7 @@ done
 
 # disable web access:
 for CHAIN in INPUT FORWARD; do
-  for PORT in 80 443; do
+  for PORT in 80 443 5901 6901; do
 
     # find and remove ACCEPT rule for port $PORT:
     unset LINE_NUMBER
