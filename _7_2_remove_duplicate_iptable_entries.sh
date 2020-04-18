@@ -17,7 +17,7 @@ removeDuplicateEntries(){
   # TODO consider to use following code instead:
   # sudo iptables-save | uniq | sudo iptables-restore # (you might need to restart iptables service after that)
 
-  suDo iptables -S | grep -v "\"" | grep "^-A INPUT\|^-A FORWARD" | while read -r line; do
+  suDo iptables -S | grep -v "\"" | grep "^-A INPUT\|^-A FORWARD\|^-A CUSTOM-ACCEPT\|^-A CUSTOM-DROP" | while read -r line; do
     [ "$DEBUG" == "true" ] && findEntries "$line"
     echo "Processing $line";
     [ "$DEBUG" == "true" ] && echo $(findEntries "$line" | wc -l)
