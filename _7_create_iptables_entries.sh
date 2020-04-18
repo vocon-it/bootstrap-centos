@@ -122,10 +122,10 @@ for CHAIN in INPUT FORWARD; do
     fi
 
   done
+  # prepend a rule that accepts all outgoing traffic, if not already present:
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I ${CHAIN} 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
 done
 
-# prepend a rule that accepts all outgoing traffic, if not already present:
-$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I INPUT 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
 
 # prepend a rule that accepts all traffic from local Docker containers, if not already present:
 $IPTABLES -L INPUT   --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I INPUT   -s "172.17.0.0/16" -j ACCEPT
