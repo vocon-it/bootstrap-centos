@@ -15,9 +15,33 @@ yum list installed | grep bind-utils 1>/dev/null || yum install -y bind-utils
 
 date
 
-for CHAIN in CUSTOM-ACCEPT CUSTOM-DROP; do
-  $IPTABLES -n -L "$CHAIN" 2>/dev/null 1>/dev/null || ( $IPTABLES -N $CHAIN && echo $CHAIN created )
+# TODO: Concept needed for the following questions:
+#       1) custome firewall: does it need to ACCEPT or RETURN allowed traffic back to the FORWARD and INPUT chain?
+#           a) if RETURN, then we need to RETURN reach rule, but default DROP of the chain (otherwise all non-matching traffic would be ACCEPTed at the end)
+#           b) with a default DROP, we need to be very careful not to lock us out. E.g. if DNS does not work anymore, we might be excluded
+#              and there is no chance to get back to the system
+#       2) Decision: do we create CUSTOM-ACCEPT and CUSTOM-DROP chains, or does the latter really make sense, if we
+#          have a default policy DROP (
+for CUSTOM_CHAIN in CUSTOM-ACCEPT CUSTOM-DROP; do
+  $IPTABLES -n -L "$CUSTOM_CHAIN" 2>/dev/null 1>/dev/null || ( $IPTABLES -N $CUSTOM_CHAIN && echo $CUSTOM_CHAIN created )
+  # TODO: Be careful with the following command. You might be locked out!
+  #iptables -P $CUSTOM_CHAIN DROP
 done
+
+# Add CUSTOM-ACCEPT on line number 1 of INPUT and FORWARD chains
+#CUSTOM_CHAIN=CUSTOM-ACCEPT \
+#  && INSERT_AT_LINE_NUMBER=1 \
+#  && CHAIN=FORWARD \
+#  && $IPTABLES -n -L ${CHAIN} --line-numbers | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${CUSTOM_CHAIN}" \
+#     || $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}
+
+# Add CUSTOM-DROP on line number 2 of INPUT and FORWARD chains
+#CUSTOM_CHAIN=CUSTOM-DROP \
+#  && INSERT_AT_LINE_NUMBER=2 \
+#  && CHAIN=INPUT \
+#  && $IPTABLES -n -L ${CHAIN} --line-numbers | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${CUSTOM_CHAIN}" \
+#     || echo "$IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}"
+
 
 while (( "$#" )); do
 
@@ -52,7 +76,10 @@ while (( "$#" )); do
    
     if [ "$FOUND_IPTABLES_ENTRY" == "" ] ; then     
       # not found in iptables. Create Entry:
-      $IPTABLES -I $CHAIN -s $Current_IP -j ACCEPT \
+      # TODO: which ACTION is needed in the CUSTOM chains?
+#      [ "$(echo $CHAIN | cut -5)" == "CUSTOM" ] && ACTION=RETURN || ACTION=ACCEPT
+      ACTION=ACCEPT
+      $IPTABLES -I $CHAIN -s $Current_IP -j $ACTION \
         && echo $Current_IP > ${LAST_IP_FILE}_$CHAIN \
         && echo "$(basename $0): $DYNDNSNAME: iptables new entry added: 'iptables -I $CHAIN $LINE_NUMBER -s $Current_IP -j ACCEPT'"
     else 
@@ -104,7 +131,9 @@ done
 #$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:443 " || $IPTABLES -I INPUT 1 -p tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
 
 # disable web access:
-for CHAIN in INPUT FORWARD; do
+# TODO: only CUSTOM-DROP needed and inside CUSTOM-DROP do not look for WEAVE_LINE_NUMBER/KUBE_LINE_NUMBER
+# TODO: CUSTOM-DROP itself must be placed before WEAVE_LINE_NUMBER or KUBE_LINE_NUMBER on INPUT and FORWARD chaines (or vice versa, tbd)
+for CHAIN in INPUT FORWARD CUSTOM-DROP; do
   for PORT in 80 443 5901 6901; do
 
     # find and remove ACCEPT rule for port $PORT:
@@ -129,16 +158,15 @@ for CHAIN in INPUT FORWARD; do
   done
   # prepend a rule that accepts all outgoing traffic, if not already present:
   $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I ${CHAIN} 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+  # prepend a rule that accepts all traffic from local Docker containers, if not already present:
+  $IPTABLES -L ${CHAIN}   --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I ${CHAIN}   -s "172.17.0.0/16" -j ACCEPT
+
+  # prepend a rule that accepts all traffic from Kubernetes Weave containers, if not already present:
+  $IPTABLES -L ${CHAIN}   --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN}   -s "10.32.0.0/12" -j ACCEPT
+
 done
 
-
-# prepend a rule that accepts all traffic from local Docker containers, if not already present:
-$IPTABLES -L INPUT   --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I INPUT   -s "172.17.0.0/16" -j ACCEPT
-$IPTABLES -L FORWARD --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I FORWARD -s "172.17.0.0/16" -j ACCEPT
-
-# prepend a rule that accepts all traffic from Kubernetes Weave containers, if not already present:
-$IPTABLES -L INPUT   --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I INPUT   -s "10.32.0.0/12" -j ACCEPT
-$IPTABLES -L FORWARD --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I FORWARD -s "10.32.0.0/12" -j ACCEPT
 
 # append a reject any with logging, if not already present:
 if ! $IPTABLES -L INPUT --line-numbers -n | grep "REJECT" | grep -q "0\.0\.0\.0\/0[ \t]*0\.0\.0\.0\/0"; then
