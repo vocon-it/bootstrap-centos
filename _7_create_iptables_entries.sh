@@ -25,15 +25,34 @@ date
 for CUSTOM_CHAIN in CUSTOM-ACCEPT CUSTOM-DROP; do
   $IPTABLES -n -L "$CUSTOM_CHAIN" 2>/dev/null 1>/dev/null || ( $IPTABLES -N $CUSTOM_CHAIN && echo $CUSTOM_CHAIN created )
   # TODO: Be careful with the following command. You might be locked out!
-  #iptables -P $CUSTOM_CHAIN DROP
+  iptables -P $CUSTOM_CHAIN RETURN
 done
 
-# Add CUSTOM-ACCEPT on line number 1 of INPUT and FORWARD chains
+# Add CUSTOM-ACCEPT on line number 1 of (INPUT and) FORWARD chains
+# TODO: add INPUT chain, once it is tested with the FORWARD chain
+#for CHAIN in FORWARD INPUT; do
+for CHAIN in FORWARD; do
+CUSTOM_CHAIN=CUSTOM-ACCEPT \
+  && INSERT_AT_LINE_NUMBER=1 \
+  && $IPTABLES -n -L ${CHAIN} --line-numbers \
+     | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${CUSTOM_CHAIN}" \
+     || $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}
+done
+
+unset CHAIN
+unset CUSTOM_CHAIN
+unset INSERT_AT_LINE_NUMBER
+
+# Remove duplicate entry, if needed
 #CUSTOM_CHAIN=CUSTOM-ACCEPT \
 #  && INSERT_AT_LINE_NUMBER=1 \
 #  && CHAIN=FORWARD \
-#  && $IPTABLES -n -L ${CHAIN} --line-numbers | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${CUSTOM_CHAIN}" \
+#  && $IPTABLES -n -L ${CHAIN} --line-numbers \
+#     | egrep -v "^${INSERT_AT_LINE_NUMBER}[ ]*${CUSTOM_CHAIN}" \
+#     | egrep -v "^[1-9][0-9]* [ ]*${CUSTOM_CHAIN}" \
+#     | awk <extract line numbers>
 #     || $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}
+
 
 # Add CUSTOM-DROP on line number 2 of INPUT and FORWARD chains
 #CUSTOM_CHAIN=CUSTOM-DROP \
@@ -69,12 +88,12 @@ while (( "$#" )); do
     # Old_IP
     [ -e ${LAST_IP_FILE}_$CHAIN ] && Old_IP=$(cat ${LAST_IP_FILE}_$CHAIN) || unset Old_IP
     [ "$DEBUG" == "true" ] && echo Old_IP=$Old_IP
-  
+
     # FOUND_IPTABLES_ENTRY
     [ "$Old_IP" != "" ] && FOUND_IPTABLES_ENTRY="$($IPTABLES -L $CHAIN -n | grep $Old_IP)" || unset FOUND_IPTABLES_ENTRY
     [ "$DEBUG" == "true" ] && echo FOUND_IPTABLES_ENTRY=$FOUND_IPTABLES_ENTRY
-   
-    if [ "$FOUND_IPTABLES_ENTRY" == "" ] ; then     
+
+    if [ "$FOUND_IPTABLES_ENTRY" == "" ] ; then
       # not found in iptables. Create Entry:
       # TODO: which ACTION is needed in the CUSTOM chains?
 #      [ "$(echo $CHAIN | cut -5)" == "CUSTOM" ] && ACTION=RETURN || ACTION=ACCEPT
@@ -82,9 +101,9 @@ while (( "$#" )); do
       $IPTABLES -I $CHAIN -s $Current_IP -j $ACTION \
         && echo $Current_IP > ${LAST_IP_FILE}_$CHAIN \
         && echo "$(basename $0): $DYNDNSNAME: iptables new entry added: 'iptables -I $CHAIN $LINE_NUMBER -s $Current_IP -j ACCEPT'"
-    else 
+    else
       # found in iptables. Compare Current_IP with Old_IP:
-  
+
       if [ "$Current_IP" == "$Old_IP" ] ; then
         echo "$(basename $0): $DYNDNSNAME: IP address $Current_IP has not changed for CHAIN=$CHAIN"
       else
@@ -177,7 +196,7 @@ if ! $IPTABLES -L INPUT --line-numbers -n | grep "REJECT" | grep -q "0\.0\.0\.0\
    $IPTABLES -A INPUT -j REJECT --reject-with icmp-host-prohibited
 fi
 
-# prepend an allow any from loopback: 
+# prepend an allow any from loopback:
 $IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "127\.0\.0\.0\/8" || $IPTABLES -I INPUT 1 -s 127.0.0.0/8 -j ACCEPT
 
 # Logging example:
