@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#
 # Remove duplicate lines from iptables
 #
 # for that:
@@ -7,7 +7,11 @@
 # - awk will remove excess duplicate lines, but will keep all comments, COMMITs and lines starting with colon
 #
 
-# Procedure can be tested with following command (should produce an empty diff, of there are no duplicate lines!):
+# Note: the Procedure can be tested with the function numberOfDuplicateLines:
+#       numberOfDuplicateLines should produce "0" if there are no duplicate lines
+#       If not, then you might need to add additional patterns that are disregarded in the awk
+#       In the moment, only the patterns ^COMMIT, ^: and ^# get special treatment.
+
 
 suDo(){
   sudo echo hallo >/dev/null 2>&1 && sudo $@ || $@
@@ -33,22 +37,13 @@ fi
 
 exit 0
 
+# OLD below this line #########################################################
 
-DEBUG=true
+DEBUG=false
 
-# New way of removing duplicate line in the iptabels config:
-iptables-save \
-  | awk '/^COMMIT|^:|^#/ {print $0} !/^COMMIT|^:|^#/ && !x[$0]++' \
-  | iptables-restore
-
-
-
-exit 0
-
-
-# OLD:
-
-
+suDo(){
+  sudo echo hallo >/dev/null 2>&1 && sudo $@ || $@
+}
 
 findEntries(){
   # finds iptables entries, if the format is the same as in the output of sudo iptables -S
