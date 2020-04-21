@@ -29,35 +29,59 @@ for CUSTOM_CHAIN in CUSTOM-ACCEPT CUSTOM-DROP; do
   $IPTABLES -n -L $CUSTOM_CHAIN | egrep '^RETURN[ ]+' || ( $IPTABLES -A $CUSTOM_CHAIN -j RETURN && echo "default policy RETURN added" )
 done
 
-# Add CUSTOM-ACCEPT on line number 1 of (INPUT and) FORWARD chains
-# TODO: add INPUT chain, once it is tested with the FORWARD chain
-#for CHAIN in FORWARD INPUT; do
+insertTargetAtLineNumberIfNeeded() {
+  usage() {
+    echo "usage: IPTABLES=/usr/sbin/iptables $0"
+  }
+
+  IPTABLES=${IPTABLES:=/usr/sbin/iptables}
+  CHAIN=${CHAIN:=NOT_DEFINED}
+  INSERT_AT_LINE_NUMBER=${INSERT_AT_LINE_NUMBER:=1}
+  JUMP=${JUMP:=NOT_DEFINED}
+  [ "$CHAIN" == "NOT_DEFINED" ] && echo "CHAIN is not defined. Exiting..." && exit 1
+  [ "$JUMP" == "NOT_DEFINED" ] && echo "JUMP is not defined. Exiting..." && exit 1
+
+  # if not exists on specified line number
+  if ! $IPTABLES -n -L ${CHAIN} --line-numbers \
+     | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${JUMP}"; then
+    # create the entry
+    $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}
+
+    # evaluate the success:
+    if [ "$?" == "0" ]; then
+      echo "Inserted successfully following iptables rule: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
+    else
+      echo "Failed to apply following iptables rule: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
+      exit 1
+    fi
+  fi
+
+}
+
 for CHAIN in FORWARD INPUT; do
-CUSTOM_CHAIN=CUSTOM-ACCEPT \
-  && INSERT_AT_LINE_NUMBER=1 \
-  && $IPTABLES -n -L ${CHAIN} --line-numbers \
-     | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${CUSTOM_CHAIN}" \
-     || ( $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN} \
-          && echo "performed successfully: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}" \
-          || echo "failed: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}" )
+  JUMP=CUSTOM-ACCEPT
+  INSERT_AT_LINE_NUMBER=1
+
+  insertTargetAtLineNumberIfNeeded
 done
 
-unset CHAIN
-unset CUSTOM_CHAIN
 
-# TODO: Test the following lines:
-# Unique entries only; see e.g. https://www.lowendtalk.com/discussion/9770/remove-duplicate-iptables-rules:
-#iptables-save | awk ' !x[$0]++' | iptables-restore
 
-# Remove duplicate entry, if needed
-#CUSTOM_CHAIN=CUSTOM-ACCEPT \
-#  && INSERT_AT_LINE_NUMBER=1 \
-#  && CHAIN=FORWARD \
-#  && $IPTABLES -n -L ${CHAIN} --line-numbers \
-#     | egrep -v "^${INSERT_AT_LINE_NUMBER}[ ]*${CUSTOM_CHAIN}" \
-#     | egrep -v "^[1-9][0-9]* [ ]*${CUSTOM_CHAIN}" \
-#     | awk <extract line numbers>
-#     || $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}
+## Add CUSTOM-ACCEPT on line number 1 of (INPUT and) FORWARD chains
+## TODO: add INPUT chain, once it is tested with the FORWARD chain
+##for CHAIN in FORWARD; do
+#for CHAIN in FORWARD INPUT; do
+#  CUSTOM_CHAIN=CUSTOM-ACCEPT \
+#    && INSERT_AT_LINE_NUMBER=1 \
+#    && $IPTABLES -n -L ${CHAIN} --line-numbers \
+#       | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${CUSTOM_CHAIN}" \
+#       || ( $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN} \
+#            && echo "performed successfully: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}" \
+#            || echo "failed: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}" )
+#done
+#
+#unset CHAIN
+#unset CUSTOM_CHAIN
 
 
 # Add CUSTOM-DROP on line number 2 of INPUT and FORWARD chains
