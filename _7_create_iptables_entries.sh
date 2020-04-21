@@ -1,4 +1,16 @@
 #!/bin/bash
+#
+# Add dynamic and static IP addresses to the Firewall
+#
+# Concept:
+# - all ACCEPT rules are placed into a CUSTOM-ACCEPT chain
+# - CUSTOM-ACCEPT chain has a last entry to RETURN to the calling chain
+# - CUSTOM-ACCEPT is placed as line #1 of INPUT and FORWARD chains
+# - most of the DROP rulse are placed into CUSTOM-DROP chain
+# - CUSTOM-DROP chain has a last entry to RETURN to the calling chain
+# - CUSTOM-DROP is placed as line #2 of the FORWARD chain
+# - some REJECT and LOG rules are still placed at the end of INPUT chain
+# TODO: will we keep some REJECT and LOG rules at the end of the INPUT chain?
 
 USAGE="Usage: $0 dyndns-name1 dyndns-name2 ... dyndns-nameN"
 
@@ -15,13 +27,7 @@ yum list installed | grep bind-utils 1>/dev/null || yum install -y bind-utils
 
 date
 
-# TODO: Concept needed for the following questions:
-#       1) custome firewall: does it need to ACCEPT or RETURN allowed traffic back to the FORWARD and INPUT chain?
-#           a) if RETURN, then we need to RETURN reach rule, but default DROP of the chain (otherwise all non-matching traffic would be ACCEPTed at the end)
-#           b) with a default DROP, we need to be very careful not to lock us out. E.g. if DNS does not work anymore, we might be excluded
-#              and there is no chance to get back to the system
-#       2) Decision: do we create CUSTOM-ACCEPT and CUSTOM-DROP chains, or does the latter really make sense, if we
-#          have a default policy DROP (
+# Create CUSTOM chains, if not present and set the default policy to "RETURN":
 for CUSTOM_CHAIN in CUSTOM-ACCEPT CUSTOM-DROP; do
   # Creating the chain:
   $IPTABLES -n -L $CUSTOM_CHAIN 2>/dev/null 1>/dev/null || ( $IPTABLES -N $CUSTOM_CHAIN && echo "$CUSTOM_CHAIN created" )
@@ -29,6 +35,7 @@ for CUSTOM_CHAIN in CUSTOM-ACCEPT CUSTOM-DROP; do
   $IPTABLES -n -L $CUSTOM_CHAIN | egrep '^RETURN[ ]+' || ( $IPTABLES -A $CUSTOM_CHAIN -j RETURN && echo "default policy RETURN added" )
 done
 
+# Insert a rule at position $INSERT_AT_LINE_NUMBER, if it is not found at that place:
 insertTargetAtLineNumberIfNeeded() {
   usage() {
     echo "usage: IPTABLES=/usr/sbin/iptables $0"
@@ -60,6 +67,7 @@ insertTargetAtLineNumberIfNeeded() {
 
 }
 
+# Add CUSTOM-ACCEPT at line 1 of INPUT and FORWARD chains:
 for CHAIN in FORWARD INPUT; do
   JUMP=CUSTOM-ACCEPT
   INSERT_AT_LINE_NUMBER=1
@@ -67,7 +75,8 @@ for CHAIN in FORWARD INPUT; do
   insertTargetAtLineNumberIfNeeded
 done
 
-# TODO: apply to INPUT as well, after it is tested on FORWARD
+# TODO: apply to INPUT as well, after it is tested on FORWARD?
+# TODO: decide, if we need different CUSTOM-DRP chains for INPUT and FORWARD chains
 for CHAIN in FORWARD; do
 #for CHAIN in FORWARD INPUT; do
   JUMP=CUSTOM-DROP
@@ -76,16 +85,47 @@ for CHAIN in FORWARD; do
   insertTargetAtLineNumberIfNeeded
 done
 
+# STATIC ACCEPTED NETWORKS
+for CHAIN in CUSTOM-ACCEPT; do
+  # prepend a rule that accepts all outgoing traffic, if not already present:
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I ${CHAIN} 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
 
+  # prepend a rule that accepts all traffic from local Docker containers, if not already present:
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I ${CHAIN} 1  -s "172.17.0.0/16" -j ACCEPT
 
-# Add CUSTOM-DROP on line number 2 of INPUT and FORWARD chains
-#CUSTOM_CHAIN=CUSTOM-DROP \
-#  && INSERT_AT_LINE_NUMBER=2 \
-#  && CHAIN=INPUT \
-#  && $IPTABLES -n -L ${CHAIN} --line-numbers | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${CUSTOM_CHAIN}" \
-#     || echo "$IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}"
+  # prepend a rule that accepts all traffic from Kubernetes Weave containers, if not already present:
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN} 1  -s "10.32.0.0/12" -j ACCEPT
 
+  # prepend an allow any from loopback:
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "127\.0\.0\.0\/8" || $IPTABLES -I ${CHAIN} 1 -s 127.0.0.0/8 -j ACCEPT
 
+  # prepend rules that accept traffic from private addresses:
+  LOCAL_IP_NETWORK_LIST="10.0.0.0/8 192.168.0.0/16"
+  for LOCAL_IP_NETWORK in $LOCAL_IP_NETWORK_LIST; do
+    # echo LOCAL_IP_NETWORK=$LOCAL_IP_NETWORK
+    if echo $LOCAL_IP_NETWORK | grep "^[1-9][0-9]\{0,2\}\."; then
+      # this is an IPv4 address
+      $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q $LOCAL_IP_NETWORK ||  $IPTABLES -I ${CHAIN} 1 -s "$LOCAL_IP_NETWORK" -j ACCEPT
+    fi
+  done
+
+  # prepend rules that accept traffic from own addresses:
+  LOCAL_IP_LIST=$(hostname -I)
+  for LOCAL_IP in $LOCAL_IP_LIST; do
+    # echo LOCAL_IP=$LOCAL_IP
+    if echo $LOCAL_IP | grep "^[1-9][0-9]\{0,2\}\."; then
+      # this is an IPv4 address
+      $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q $LOCAL_IP ||  $IPTABLES -I ${CHAIN} 1 -s "$LOCAL_IP/32" -j ACCEPT
+    fi
+  done
+
+  # Prepend rules for DC/OS specific loopback addresses:
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "198\.51\.100\.0\/24" || $IPTABLES -I ${CHAIN} 1 -s 198.51.100.0/24 -j ACCEPT
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "44\.128\.0\.0\/20" || $IPTABLES -I ${CHAIN} 1 -s 44.128.0.2/20 -j ACCEPT
+
+done
+
+# DYNAMIC ACCEPTED FQDNs OR IP ADDRESSES
 while (( "$#" )); do
 
   DYNDNSNAME=$1
@@ -149,74 +189,47 @@ shift
 
 done
 
-# prepend rules that accept traffic from private addresses:
-LOCAL_IP_NETWORK_LIST="10.0.0.0/8 192.168.0.0/16"
-for LOCAL_IP_NETWORK in $LOCAL_IP_NETWORK_LIST; do
-  # echo LOCAL_IP_NETWORK=$LOCAL_IP_NETWORK
-  if echo $LOCAL_IP_NETWORK | grep "^[1-9][0-9]\{0,2\}\."; then
-    # this is an IPv4 address
-    $IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q $LOCAL_IP_NETWORK ||  $IPTABLES -I INPUT 1 -s "$LOCAL_IP_NETWORK" -j ACCEPT
-  fi
-done
+# TODO: if ENABLE_PUBLIC_WEB_ACCESS=true, we need to act on VNC separately.
+#       better create a function that can be called with 80, 443, 5901 and 6901?
+ENABLE_PUBLIC_WEB_ACCESS=false
 
-# prepend rules that accept traffic from own addresses:
-LOCAL_IP_LIST=$(hostname -I)
-for LOCAL_IP in $LOCAL_IP_LIST; do
-  # echo LOCAL_IP=$LOCAL_IP
-  if echo $LOCAL_IP | grep "^[1-9][0-9]\{0,2\}\."; then
-    # this is an IPv4 address
-    $IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q $LOCAL_IP ||  $IPTABLES -I INPUT 1 -s "$LOCAL_IP/32" -j ACCEPT
-  fi
-done
+if [ "ENABLE_PUBLIC_WEB_ACCESS" == "true" ]; then
+  # enable web access (commented out, because we do not allow web traffic for now):
+  $IPTABLES -L CUSTOM-ACCEPT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:80 " || $IPTABLES -I CUSTOM-ACCEPT 1 -p tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+  $IPTABLES -L CUSTOM-ACCEPT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:443 " || $IPTABLES -I CUSTOM-ACCEPT 1 -p tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+else
+  # disable web access:
+  REJECTED_PORTS="80 443 5901 6901"
 
-# prepend rules that accepts all incoming web traffic:
-#$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:80 " || $IPTABLES -I INPUT 1 -p tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
-#$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:443 " || $IPTABLES -I INPUT 1 -p tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+  # remove ACCEPT rules if they exist:
+  for CHAIN in INPUT FORWARD CUSTOM-ACCEPT CUSTOM-DROP; do
+    for PORT in $REJECTED_PORTS; do
 
-# disable web access:
-# TODO: only CUSTOM-DROP needed and inside CUSTOM-DROP do not look for WEAVE_LINE_NUMBER/KUBE_LINE_NUMBER
-# TODO: CUSTOM-DROP itself must be placed before WEAVE_LINE_NUMBER or KUBE_LINE_NUMBER on INPUT and FORWARD chaines (or vice versa, tbd)
-for CHAIN in INPUT FORWARD CUSTOM-ACCEPT CUSTOM-DROP; do
-  for PORT in 80 443 5901 6901; do
+      # find and remove ACCEPT rule for port $PORT, if present:
+      unset LINE_NUMBER
+      LINE_NUMBER=$($IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep "dpt:$PORT " | head -n 1 | awk '{print $1}')
+      [ "$LINE_NUMBER" != "" ] && echo "Removing ACCEPT rule for port ${PORT}" && $IPTABLES -D ${CHAIN} $LINE_NUMBER
 
-    # find and remove ACCEPT rule for port $PORT, if present:
-    unset LINE_NUMBER
-    LINE_NUMBER=$($IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep "dpt:$PORT " | head -n 1 | awk '{print $1}')
-    [ "$LINE_NUMBER" != "" ] && echo "Removing ACCEPT rule for port ${PORT}" && $IPTABLES -D ${CHAIN} $LINE_NUMBER
-
+    done
   done
-done
 
-for CHAIN in CUSTOM-DROP; do
-  for PORT in 80 443 5901 6901; do
-    DROP_LINE_NUMBER=1
+  # add DROP rules, if they do not exist:
+  for CHAIN in CUSTOM-DROP; do
+    for PORT in $REJECTED_PORTS; do
+      DROP_LINE_NUMBER=1
 
-    # Add DROP rule for port $PORT, if not present:
-    if ! $IPTABLES -L ${CHAIN} --line-numbers -n | grep "DROP" | grep -q "dpt:${PORT}$"; then
-      echo adding DROP rule for port ${PORT} on ${CHAIN}
-      $IPTABLES -I ${CHAIN} $DROP_LINE_NUMBER -p tcp --dport ${PORT} -j DROP
-    fi
+      # Add DROP rule for port $PORT, if not present:
+      if ! $IPTABLES -L ${CHAIN} --line-numbers -n | grep "DROP" | grep -q "dpt:${PORT}$"; then
+        echo adding DROP rule for port ${PORT} on ${CHAIN}
+        $IPTABLES -I ${CHAIN} $DROP_LINE_NUMBER -p tcp --dport ${PORT} -j DROP
+      fi
 
+    done
   done
-done
+fi
 
 
-for CHAIN in CUSTOM-ACCEPT; do
-  # prepend a rule that accepts all outgoing traffic, if not already present:
-  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I ${CHAIN} 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
-
-  # prepend a rule that accepts all traffic from local Docker containers, if not already present:
-  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I ${CHAIN} 1  -s "172.17.0.0/16" -j ACCEPT
-
-  # prepend a rule that accepts all traffic from Kubernetes Weave containers, if not already present:
-  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN} 1  -s "10.32.0.0/12" -j ACCEPT
-
-  # prepend an allow any from loopback:
-  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "127\.0\.0\.0\/8" || $IPTABLES -I ${CHAIN} 1 -s 127.0.0.0/8 -j ACCEPT
-
-done
-
-
+# TODO: make sure that reject port 22, the log and the REJECT any are placed at the end of the INPUT chain:
 # append a reject any with logging, if not already present:
 if ! $IPTABLES -L INPUT --line-numbers -n | grep "REJECT" | grep -q "0\.0\.0\.0\/0[ \t]*0\.0\.0\.0\/0"; then
    # we filter SSH login attempts without logging:
@@ -226,10 +239,3 @@ if ! $IPTABLES -L INPUT --line-numbers -n | grep "REJECT" | grep -q "0\.0\.0\.0\
    $IPTABLES -A INPUT -j REJECT --reject-with icmp-host-prohibited
 fi
 
-
-# Logging example:
-# iptables -I INPUT 10 -s 0.0.0.0/0 -j LOG --log-prefix "iptables:REJECT all: "
-
-# DC/OS specific loopback addresses:
-$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "198\.51\.100\.0\/24" || $IPTABLES -I INPUT 2 -s 198.51.100.0/24 -j ACCEPT
-$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "44\.128\.0\.0\/20" || $IPTABLES -I INPUT 2 -s 44.128.0.2/20 -j ACCEPT
