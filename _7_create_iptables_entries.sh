@@ -65,23 +65,15 @@ for CHAIN in FORWARD INPUT; do
   insertTargetAtLineNumberIfNeeded
 done
 
-
-
-## Add CUSTOM-ACCEPT on line number 1 of (INPUT and) FORWARD chains
-## TODO: add INPUT chain, once it is tested with the FORWARD chain
-##for CHAIN in FORWARD; do
+# TODO: apply to INPUT as well, after it is tested on FORWARD
+for CHAIN in FORWARD; do
 #for CHAIN in FORWARD INPUT; do
-#  CUSTOM_CHAIN=CUSTOM-ACCEPT \
-#    && INSERT_AT_LINE_NUMBER=1 \
-#    && $IPTABLES -n -L ${CHAIN} --line-numbers \
-#       | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${CUSTOM_CHAIN}" \
-#       || ( $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN} \
-#            && echo "performed successfully: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}" \
-#            || echo "failed: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}" )
-#done
-#
-#unset CHAIN
-#unset CUSTOM_CHAIN
+  JUMP=CUSTOM-DROP
+  INSERT_AT_LINE_NUMBER=2
+
+  insertTargetAtLineNumberIfNeeded
+done
+
 
 
 # Add CUSTOM-DROP on line number 2 of INPUT and FORWARD chains
@@ -205,14 +197,18 @@ for CHAIN in INPUT FORWARD CUSTOM-DROP; do
     fi
 
   done
+done
+
+
+for CHAIN in INPUT FORWARD CUSTOM-ACCEPT; do
   # prepend a rule that accepts all outgoing traffic, if not already present:
   $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I ${CHAIN} 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
 
   # prepend a rule that accepts all traffic from local Docker containers, if not already present:
-  $IPTABLES -L ${CHAIN}   --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I ${CHAIN}   -s "172.17.0.0/16" -j ACCEPT
+  $IPTABLES -L ${CHAIN}   --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I ${CHAIN} 1  -s "172.17.0.0/16" -j ACCEPT
 
   # prepend a rule that accepts all traffic from Kubernetes Weave containers, if not already present:
-  $IPTABLES -L ${CHAIN}   --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN}   -s "10.32.0.0/12" -j ACCEPT
+  $IPTABLES -L ${CHAIN}   --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN} 1  -s "10.32.0.0/12" -j ACCEPT
 
 done
 
