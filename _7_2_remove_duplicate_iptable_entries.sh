@@ -8,20 +8,25 @@
 #
 
 # Procedure can be tested with following command (should produce an empty diff, of there are no duplicate lines!):
+
+suDo(){
+  sudo echo hallo >/dev/null 2>&1 && sudo $@ || $@
+}
+
 numberOfDuplicateLines(){
- iptables-save > /tmp/iptables-save \
+ suDo iptables-save > /tmp/iptables-save \
    && cat /tmp/iptables-save \
    | awk '/^COMMIT|^:|^#/ {print $0} !/^COMMIT|^:|^#/ && !x[$0]++' > /tmp/iptables-save.awked \
    && diff /tmp/iptables-save.awked /tmp/iptables-save | wc -l
 }
 
 if [ "$(numberOfDuplicateLines)" == "0" ]; then
-  echo "no duplicate lines found in iptables"
+  echo "No duplicate lines found in iptables"
 else
   echo "Removing duplicate lines from iptables"
-  iptables-save \
+  suDo iptables-save \
     | awk '/^COMMIT|^:|^#/ {print $0} !/^COMMIT|^:|^#/ && !x[$0]++' \
-    | iptables-restore \
+    | suDo iptables-restore \
     && echo "Removed duplicate lines from iptables"
   [ "$?" != "0" ] && echo "failed to remove duplicate lines in iptables" && exit 1 || true
 fi
@@ -43,9 +48,7 @@ exit 0
 
 # OLD:
 
-suDo(){
-  sudo echo hallo >/dev/null 2>&1 && sudo $@ || $@
-}
+
 
 findEntries(){
   # finds iptables entries, if the format is the same as in the output of sudo iptables -S
