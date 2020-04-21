@@ -23,9 +23,10 @@ date
 #       2) Decision: do we create CUSTOM-ACCEPT and CUSTOM-DROP chains, or does the latter really make sense, if we
 #          have a default policy DROP (
 for CUSTOM_CHAIN in CUSTOM-ACCEPT CUSTOM-DROP; do
-  $IPTABLES -n -L "$CUSTOM_CHAIN" 2>/dev/null 1>/dev/null || ( $IPTABLES -N $CUSTOM_CHAIN && echo $CUSTOM_CHAIN created )
-  # TODO: Be careful with the following command. You might be locked out!
-  iptables -P $CUSTOM_CHAIN RETURN
+  # Creating the chain:
+  $IPTABLES -n -L $CUSTOM_CHAIN 2>/dev/null 1>/dev/null || ( $IPTABLES -N $CUSTOM_CHAIN && echo "$CUSTOM_CHAIN created" )
+  # Adding default policy RETURN explicitly at end of chain:
+  $IPTABLES -n -L $CUSTOM_CHAIN | egrep '^RETURN[ ]+' || ( $IPTABLES -A $CUSTOM_CHAIN -j RETURN && echo "default policy RETURN added" )
 done
 
 # Add CUSTOM-ACCEPT on line number 1 of (INPUT and) FORWARD chains
@@ -41,7 +42,6 @@ done
 
 unset CHAIN
 unset CUSTOM_CHAIN
-unset INSERT_AT_LINE_NUMBER
 
 # Remove duplicate entry, if needed
 #CUSTOM_CHAIN=CUSTOM-ACCEPT \
