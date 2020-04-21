@@ -20,11 +20,11 @@ removeDuplicateEntries(){
   suDo iptables -S | grep -v "\"" | grep "^-A INPUT\|^-A FORWARD\|^-A CUSTOM-ACCEPT\|^-A CUSTOM-DROP" | while read -r line; do
     [ "$DEBUG" == "true" ] && findEntries "$line"
     echo "Processing $line";
-    [ "$DEBUG" == "true" ] && echo $(findEntries "$line" | wc -l)
+    [ "$DEBUG" == "true" ] && echo "found $(findEntries "$line" | wc -l) entries for $line"
     while [ $(findEntries "$line" | wc -l) -gt 1 ]; do
       deleteLine="$(echo $line | sed 's/^-A/-D/')"
       [ "$DEBUG" == "true" ] && echo deleteLine=$deleteLine
-      suDo iptables "$deleteLine"
+      suDo iptables "$deleteLine" && echo "applied following command successfully : iptables $deleteLine" || echo "error applying following command: iptables $deleteLine"
       [ "$DEBUG" == "true" ] && findEntries "$line"
     done
   done
