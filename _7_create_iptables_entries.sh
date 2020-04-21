@@ -51,6 +51,7 @@ insertTargetAtLineNumberIfNeeded() {
     # evaluate the success:
     if [ "$?" == "0" ]; then
       echo "Inserted successfully following iptables rule: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
+      $IPTABLES -n -L ${CHAIN}
     else
       echo "Failed to apply following iptables rule: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
       exit 1
