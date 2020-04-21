@@ -12,6 +12,7 @@
 #       If not, then you might need to add additional patterns that are disregarded in the awk
 #       In the moment, only the patterns ^COMMIT, ^: and ^# get special treatment.
 
+DEBUG=true
 
 suDo(){
   sudo echo hallo >/dev/null 2>&1 && sudo $@ || $@
@@ -28,11 +29,15 @@ if [ "$(numberOfDuplicateLines)" == "0" ]; then
   echo "No duplicate lines found in iptables"
 else
   echo "Removing duplicate lines from iptables"
+  # debugging:
+  [ "$DEBUG" == "true" ] && echo "BEFORE:" && suDo iptables -n -L INPUT
   suDo iptables-save \
     | awk '/^COMMIT|^:|^#/ {print $0} !/^COMMIT|^:|^#/ && !x[$0]++' \
     | suDo iptables-restore \
     && echo "Removed duplicate lines from iptables"
   [ "$?" != "0" ] && echo "failed to remove duplicate lines in iptables" && exit 1 || true
+  # debugging:
+  [ "$DEBUG" == "true" ] && echo "AFTER:" && suDo iptables -n -L INPUT
 fi
 
 exit 0
