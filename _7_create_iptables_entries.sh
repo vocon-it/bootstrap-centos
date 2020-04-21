@@ -45,6 +45,7 @@ insertTargetAtLineNumberIfNeeded() {
   if ! $IPTABLES -n -L ${CHAIN} --line-numbers \
      | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${JUMP}"; then
     # create the entry
+    echo "Prepending entry: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
     $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}
 
     # evaluate the success:
