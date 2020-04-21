@@ -174,23 +174,22 @@ done
 # disable web access:
 # TODO: only CUSTOM-DROP needed and inside CUSTOM-DROP do not look for WEAVE_LINE_NUMBER/KUBE_LINE_NUMBER
 # TODO: CUSTOM-DROP itself must be placed before WEAVE_LINE_NUMBER or KUBE_LINE_NUMBER on INPUT and FORWARD chaines (or vice versa, tbd)
-for CHAIN in INPUT FORWARD CUSTOM-DROP; do
+for CHAIN in INPUT FORWARD CUSTOM-ACCEPT CUSTOM-DROP; do
   for PORT in 80 443 5901 6901; do
 
-    # find and remove ACCEPT rule for port $PORT:
+    # find and remove ACCEPT rule for port $PORT, if present:
     unset LINE_NUMBER
     LINE_NUMBER=$($IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep "dpt:$PORT " | head -n 1 | awk '{print $1}')
     [ "$LINE_NUMBER" != "" ] && echo "Removing ACCEPT rule for port ${PORT}" && $IPTABLES -D ${CHAIN} $LINE_NUMBER
 
-    WEAVE_LINE_NUMBER=$($IPTABLES -L ${CHAIN} --line-numbers -n | egrep "^[0-9]+[ ]+WEAVE-" | head -n 1 | awk '{print $1}')
-    KUBE_LINE_NUMBER=$($IPTABLES -L ${CHAIN} --line-numbers -n | egrep "^[0-9]+[ ]+KUBE-" | head -n 1 | awk '{print $1}')
-    [ "$WEAVE_LINE_NUMBER" == "" ] && DROP_LINE_NUMBER=1 || DROP_LINE_NUMBER="$WEAVE_LINE_NUMBER"
-    [ "$KUBE_LINE_NUMBER" != "" ] && [ $KUBE_LINE_NUMBER -lt $DROP_LINE_NUMBER ] && DROP_LINE_NUMBER="$KUBE_LINE_NUMBER"
-    # debugs:
-    # echo "$CHAIN: WEAVE_LINE_NUMBER=$WEAVE_LINE_NUMBER"
-    # echo "$CHAIN: KUBE_LINE_NUMBER=$KUBE_LINE_NUMBER"
-    # echo "$CHAIN: DROP_LINE_NUMBER=$DROP_LINE_NUMBER"
+  done
+done
 
+for CHAIN in CUSTOM-DROP; do
+  for PORT in 80 443 5901 6901; do
+    DROP_LINE_NUMBER=1
+
+    # Add DROP rule for port $PORT, if not present:
     if ! $IPTABLES -L ${CHAIN} --line-numbers -n | grep "DROP" | grep -q "dpt:${PORT}$"; then
       echo adding DROP rule for port ${PORT} on ${CHAIN}
       $IPTABLES -I ${CHAIN} $DROP_LINE_NUMBER -p tcp --dport ${PORT} -j DROP
@@ -200,15 +199,18 @@ for CHAIN in INPUT FORWARD CUSTOM-DROP; do
 done
 
 
-for CHAIN in INPUT FORWARD CUSTOM-ACCEPT; do
+for CHAIN in CUSTOM-ACCEPT; do
   # prepend a rule that accepts all outgoing traffic, if not already present:
   $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I ${CHAIN} 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
 
   # prepend a rule that accepts all traffic from local Docker containers, if not already present:
-  $IPTABLES -L ${CHAIN}   --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I ${CHAIN} 1  -s "172.17.0.0/16" -j ACCEPT
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I ${CHAIN} 1  -s "172.17.0.0/16" -j ACCEPT
 
   # prepend a rule that accepts all traffic from Kubernetes Weave containers, if not already present:
-  $IPTABLES -L ${CHAIN}   --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN} 1  -s "10.32.0.0/12" -j ACCEPT
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN} 1  -s "10.32.0.0/12" -j ACCEPT
+
+  # prepend an allow any from loopback:
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "127\.0\.0\.0\/8" || $IPTABLES -I INPUT 1 -s 127.0.0.0/8 -j ACCEPT
 
 done
 
@@ -222,8 +224,6 @@ if ! $IPTABLES -L INPUT --line-numbers -n | grep "REJECT" | grep -q "0\.0\.0\.0\
    $IPTABLES -A INPUT -j REJECT --reject-with icmp-host-prohibited
 fi
 
-# prepend an allow any from loopback:
-$IPTABLES -L INPUT --line-numbers -n | grep "ACCEPT" | grep -q "127\.0\.0\.0\/8" || $IPTABLES -I INPUT 1 -s 127.0.0.0/8 -j ACCEPT
 
 # Logging example:
 # iptables -I INPUT 10 -s 0.0.0.0/0 -j LOG --log-prefix "iptables:REJECT all: "
