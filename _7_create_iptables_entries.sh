@@ -37,11 +37,17 @@ CUSTOM_CHAIN=CUSTOM-ACCEPT \
   && INSERT_AT_LINE_NUMBER=1 \
   && $IPTABLES -n -L ${CHAIN} --line-numbers \
      | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${CUSTOM_CHAIN}" \
-     || $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}
+     || ( $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN} \
+          && echo "performed successfully: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}" \
+          || echo "failed: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${CUSTOM_CHAIN}" )
 done
 
 unset CHAIN
 unset CUSTOM_CHAIN
+
+# TODO: Test the following lines:
+# Unique entries only; see e.g. https://www.lowendtalk.com/discussion/9770/remove-duplicate-iptables-rules:
+#iptables-save | awk ' !x[$0]++' | iptables-restore
 
 # Remove duplicate entry, if needed
 #CUSTOM_CHAIN=CUSTOM-ACCEPT \
