@@ -212,7 +212,7 @@ for CHAIN in CUSTOM-ACCEPT; do
   $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN} 1  -s "10.32.0.0/12" -j ACCEPT
 
   # prepend an allow any from loopback:
-  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "127\.0\.0\.0\/8" || $IPTABLES -I INPUT 1 -s 127.0.0.0/8 -j ACCEPT
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "127\.0\.0\.0\/8" || $IPTABLES -I ${CHAIN} 1 -s 127.0.0.0/8 -j ACCEPT
 
 done
 
