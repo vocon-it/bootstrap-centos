@@ -108,7 +108,7 @@ while (( "$#" )); do
   # Current_IP
   [ "$DEBUG" == "true" ] && echo Current_IP=$Current_IP
 
-  for CHAIN in INPUT FORWARD CUSTOM-ACCEPT; do
+  for CHAIN in CUSTOM-ACCEPT; do
     # Old_IP
     [ -e ${LAST_IP_FILE}_$CHAIN ] && Old_IP=$(cat ${LAST_IP_FILE}_$CHAIN) || unset Old_IP
     [ "$DEBUG" == "true" ] && echo Old_IP=$Old_IP
