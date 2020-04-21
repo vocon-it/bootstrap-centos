@@ -32,7 +32,7 @@ done
 # Add CUSTOM-ACCEPT on line number 1 of (INPUT and) FORWARD chains
 # TODO: add INPUT chain, once it is tested with the FORWARD chain
 #for CHAIN in FORWARD INPUT; do
-for CHAIN in FORWARD; do
+for CHAIN in FORWARD INPUT; do
 CUSTOM_CHAIN=CUSTOM-ACCEPT \
   && INSERT_AT_LINE_NUMBER=1 \
   && $IPTABLES -n -L ${CHAIN} --line-numbers \
