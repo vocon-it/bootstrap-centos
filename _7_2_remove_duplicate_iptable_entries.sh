@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEBUG=false
+DEBUG=true
 
 suDo(){
   sudo echo hallo >/dev/null 2>&1 && sudo $@ || $@
