@@ -52,7 +52,7 @@ insertTargetAtLineNumberIfNeeded() {
   if $IPTABLES -n -L ${CHAIN} --line-numbers \
      | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${JUMP}"; then
      [ "$DEBUG" == "true" ] && echo "iptables rule exists already: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
-     exit 0
+     return
   fi
 
   # create the entry
@@ -116,7 +116,7 @@ for CHAIN in CUSTOM-ACCEPT; do
   if [ "$KUBERNETES" == "true" ]; then
     $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN} 1  -s "10.32.0.0/12" -j ACCEPT
   fi
-  
+
   # Prepend rules for DC/OS specific loopback addresses, if not already present:
   if [ "$DCOS" == "true" ]; then
     $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "198\.51\.100\.0\/24" || $IPTABLES -I ${CHAIN} 1 -s 198.51.100.0/24 -j ACCEPT
