@@ -38,50 +38,46 @@ done
 # Insert a rule at position $INSERT_AT_LINE_NUMBER, if it is not found at that place:
 insertTargetAtLineNumberIfNeeded() {
   usage() {
-    echo "usage: IPTABLES=/usr/sbin/iptables $0"
+    echo "usage: [IPTABLES=...;] [INSERT_AT_LINE_NUMBER=...;] CHAIN=...; JUMP=...; $0"
   }
 
   IPTABLES=${IPTABLES:=/usr/sbin/iptables}
   CHAIN=${CHAIN:=NOT_DEFINED}
   INSERT_AT_LINE_NUMBER=${INSERT_AT_LINE_NUMBER:=1}
   JUMP=${JUMP:=NOT_DEFINED}
-  [ "$CHAIN" == "NOT_DEFINED" ] && echo "CHAIN is not defined. Exiting..." && exit 1
-  [ "$JUMP" == "NOT_DEFINED" ] && echo "JUMP is not defined. Exiting..." && exit 1
+  [ "$CHAIN" == "NOT_DEFINED" ] && echo "CHAIN is not defined. Exiting..." && usage && exit 1
+  [ "$JUMP" == "NOT_DEFINED" ] && echo "JUMP is not defined. Exiting..." && usage && exit 1
 
-  # if not exists on specified line number
-  if ! $IPTABLES -n -L ${CHAIN} --line-numbers \
+  # exit function, if rule exists on specified line number already:
+  if $IPTABLES -n -L ${CHAIN} --line-numbers \
      | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${JUMP}"; then
-    # create the entry
-    echo "Prepending entry: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
-    $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}
-
-    # evaluate the success:
-    if [ "$?" == "0" ]; then
-      echo "Inserted successfully following iptables rule: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
-      $IPTABLES -n -L ${CHAIN}
-    else
-      echo "Failed to apply following iptables rule: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
-      exit 1
-    fi
+     [ "$DEBUG" == "true" ] && echo "iptables rule exists already: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
+     exit 0
   fi
 
+  # create the entry
+  echo "Prepending entry: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
+  $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}
+
+  # evaluate the success:
+  if [ "$?" == "0" ]; then
+    echo "Inserted successfully following iptables rule: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
+    $IPTABLES -n -L ${CHAIN}
+  else
+    echo "Failed to apply following iptables rule: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
+    exit 1
+  fi
 }
 
 # Add CUSTOM-ACCEPT at line 1 of INPUT and FORWARD chains:
 for CHAIN in FORWARD INPUT; do
-  JUMP=CUSTOM-ACCEPT
-  INSERT_AT_LINE_NUMBER=1
-
+  JUMP=CUSTOM-ACCEPT; INSERT_AT_LINE_NUMBER=1
   insertTargetAtLineNumberIfNeeded
 done
 
-# TODO: apply to INPUT as well, after it is tested on FORWARD?
 # TODO: decide, if we need different CUSTOM-DRP chains for INPUT and FORWARD chains
-for CHAIN in FORWARD; do
-#for CHAIN in FORWARD INPUT; do
-  JUMP=CUSTOM-DROP
-  INSERT_AT_LINE_NUMBER=2
-
+for CHAIN in FORWARD INPUT; do
+  JUMP=CUSTOM-DROP; INSERT_AT_LINE_NUMBER=2
   insertTargetAtLineNumberIfNeeded
 done
 
@@ -93,18 +89,15 @@ for CHAIN in CUSTOM-ACCEPT; do
   # prepend a rule that accepts all traffic from local Docker containers, if not already present:
   $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I ${CHAIN} 1  -s "172.17.0.0/16" -j ACCEPT
 
-  # prepend a rule that accepts all traffic from Kubernetes Weave containers, if not already present:
-  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN} 1  -s "10.32.0.0/12" -j ACCEPT
-
   # prepend an allow any from loopback:
   $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "127\.0\.0\.0\/8" || $IPTABLES -I ${CHAIN} 1 -s 127.0.0.0/8 -j ACCEPT
 
   # prepend rules that accept traffic from private addresses:
   LOCAL_IP_NETWORK_LIST="10.0.0.0/8 192.168.0.0/16"
   for LOCAL_IP_NETWORK in $LOCAL_IP_NETWORK_LIST; do
-    # echo LOCAL_IP_NETWORK=$LOCAL_IP_NETWORK
+    [ "$DEBUG" == "true" ] && echo LOCAL_IP_NETWORK=$LOCAL_IP_NETWORK
     if echo $LOCAL_IP_NETWORK | grep "^[1-9][0-9]\{0,2\}\."; then
-      # this is an IPv4 address
+      # $LOCAL_IP_NETWORK is an IPv4 network and will be added, if not already present:
       $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q $LOCAL_IP_NETWORK ||  $IPTABLES -I ${CHAIN} 1 -s "$LOCAL_IP_NETWORK" -j ACCEPT
     fi
   done
@@ -114,15 +107,21 @@ for CHAIN in CUSTOM-ACCEPT; do
   for LOCAL_IP in $LOCAL_IP_LIST; do
     # echo LOCAL_IP=$LOCAL_IP
     if echo $LOCAL_IP | grep "^[1-9][0-9]\{0,2\}\."; then
-      # this is an IPv4 address
+      # $LOCAL_IP is an IPv4 address and will be added, if not already present:
       $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q $LOCAL_IP ||  $IPTABLES -I ${CHAIN} 1 -s "$LOCAL_IP/32" -j ACCEPT
     fi
   done
 
-  # Prepend rules for DC/OS specific loopback addresses:
-  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "198\.51\.100\.0\/24" || $IPTABLES -I ${CHAIN} 1 -s 198.51.100.0/24 -j ACCEPT
-  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "44\.128\.0\.0\/20" || $IPTABLES -I ${CHAIN} 1 -s 44.128.0.2/20 -j ACCEPT
-
+  # prepend a rule that accepts all traffic from Kubernetes Weave containers, if not already present:
+  if [ "$KUBERNETES" == "true" ]; then
+    $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN} 1  -s "10.32.0.0/12" -j ACCEPT
+  fi
+  
+  # Prepend rules for DC/OS specific loopback addresses, if not already present:
+  if [ "$DCOS" == "true" ]; then
+    $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "198\.51\.100\.0\/24" || $IPTABLES -I ${CHAIN} 1 -s 198.51.100.0/24 -j ACCEPT
+    $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "44\.128\.0\.0\/20" || $IPTABLES -I ${CHAIN} 1 -s 44.128.0.2/20 -j ACCEPT
+  fi
 done
 
 # DYNAMIC ACCEPTED FQDNs OR IP ADDRESSES

@@ -17,13 +17,15 @@ answer=no
 read -t 10 -p "Is this a Kubernetes installation? (no) > " answer
 [ "$answer" == "y" -o "$answer" == "yes" ] \
    && echo "Okay, the Kubernetes IP addresses are added to the Firewall table..." \
-   && ADDIP="$ADDIP 10.96.0.1"
+   && ADDIP="$ADDIP 10.96.0.1" \
+   && export KUBERNETES=true
 
 answer=no
 read -t 10 -p "Is this a DC/OS installation? (no) > " answer
 [ "$answer" == "y" -o "$answer" == "yes" ] \
    && echo "Okay, the DC/OS IP addresses are added to the Firewall table..." \
-   && ADDIP="$ADDIP 195.201.27.175 195.201.17.1 94.130.187.229 195.201.30.230 94.130.186.77"
+   && ADDIP="$ADDIP 195.201.27.175 195.201.17.1 94.130.187.229 195.201.30.230 94.130.186.77" \
+   && export DCOS=true
 
 # run _7xxx.sh:
 $(cd $(dirname $0); pwd)/_$(basename $0) $ADDIP

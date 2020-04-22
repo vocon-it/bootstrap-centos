@@ -2,6 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="29dd0bb2-eaec-4961-b354-41825d1b96c9" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/7_create_iptables_entries.sh" beforeDir="false" afterPath="$PROJECT_DIR$/7_create_iptables_entries.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/_7_create_iptables_entries.sh" beforeDir="false" afterPath="$PROJECT_DIR$/_7_create_iptables_entries.sh" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
