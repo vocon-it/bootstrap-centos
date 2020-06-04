@@ -14,6 +14,8 @@
 
 DEBUG=true
 
+#TODO: better replace suDo by alias sudo='$@' in case sudo is not defined 
+# sudo echo hello >/dev/null 2>&1 || alias sudo='$@' # but this is to be tested
 suDo(){
   sudo echo hallo >/dev/null 2>&1 && sudo $@ || $@
 }
