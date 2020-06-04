@@ -15,7 +15,6 @@
 USAGE="Usage: $0 dyndns-name1 dyndns-name2 ... dyndns-nameN"
 
 #[ "$DYNDNSNAME" == "" ] && DYNDNSNAME=vocon-home.mooo.com
-DEBUG=true
 
 if [ "$#" == "0" ]; then
 	echo "$USAGE"
@@ -190,7 +189,6 @@ done
 
 # TODO: if ENABLE_PUBLIC_WEB_ACCESS=true, we need to act on VNC separately.
 #       better create a function that can be called with 80, 443, 5901 and 6901?
-ENABLE_PUBLIC_WEB_ACCESS=false
 
 if [ "ENABLE_PUBLIC_WEB_ACCESS" == "true" ]; then
   # enable web access (commented out, because we do not allow web traffic for now):

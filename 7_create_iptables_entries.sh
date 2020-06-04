@@ -7,6 +7,9 @@ else
   ADDIP="$@"
 fi
 
+# is evaluated by _7_create_iptables_entries.sh
+export ENABLE_PUBLIC_WEB_ACCESS=false
+
 # update this file from git, if it has changed:
 ( cd $(dirname $0) && export PATH=$PATH:/usr/local/bin && git pull )
 
