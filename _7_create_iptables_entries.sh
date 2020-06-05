@@ -196,7 +196,7 @@ if [ "ENABLE_PUBLIC_WEB_ACCESS" == "true" ]; then
   $IPTABLES -L CUSTOM-ACCEPT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:443 " || $IPTABLES -I CUSTOM-ACCEPT 1 -p tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
 else
   # disable web access:
-  REJECTED_PORTS="80 443 5901 6901"
+  REJECTED_PORTS="80 443 5901 6901 5902 6902"
 
   # remove ACCEPT rules if they exist:
   for CHAIN in INPUT FORWARD CUSTOM-ACCEPT CUSTOM-DROP; do
