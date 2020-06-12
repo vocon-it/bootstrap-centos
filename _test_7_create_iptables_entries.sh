@@ -13,32 +13,12 @@
 # TODO: will we keep some REJECT and LOG rules at the end of the INPUT chain?
 
 
-# for logging:
-date
-
-if [ "$(id -u)" != "0" ]; then
-  echo "This script ($0) must be run as root. Exiting..."
-  exit 1
-fi
-
-if [ "$#" == "0" ]; then
-  echo "usage: $0 dyndns-name1 dyndns-name2 ... dyndns-nameN"
-  exit 1
-fi
-
-# in case sudo is not defined, create an alias:
-sudo echo hello 2>/dev/null 1>/dev/null || alias sudo='$@'
-
-# prerequisite: bind-utils must be installed:
-sudo yum list installed | grep -q bind-utils || sudo yum install -y bind-utils
-
 # In case iptables is not in the path, we need to use the full path:
 definitions(){
   IPTABLES=${IPTABLES:=/usr/sbin/iptables}
   sudo echo hello 2>/dev/null 1>/dev/null || alias sudo='$@'
 }
 
-definitions
 
 create_iptable_chains(){
   definitions
@@ -102,6 +82,7 @@ modify_iptable_chain_policy() {
 insertTargetAtLineNumberIfNeeded() {
   usage() {
     echo "usage: [IPTABLES=...;] [INSERT_AT_LINE_NUMBER=...;] CHAIN=...; JUMP=...; $0"
+    echo "INSERT_AT_LINE_NUMBER=0 means 'at the last line'"
   }
 
   IPTABLES=${IPTABLES:=/usr/sbin/iptables}
@@ -110,24 +91,33 @@ insertTargetAtLineNumberIfNeeded() {
   JUMP=${JUMP:=NOT_DEFINED}
   [ "$CHAIN" == "NOT_DEFINED" ] && echo "CHAIN is not defined. Exiting..." && usage && exit 1
   [ "$JUMP" == "NOT_DEFINED" ] && echo "JUMP is not defined. Exiting..." && usage && exit 1
+  EXIT_CODE=1
 
-  # exit function, if rule exists on specified line number already:
-  if $IPTABLES -n -L ${CHAIN} --line-numbers \
-     | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${JUMP}"; then
-     [ "$DEBUG" == "true" ] && echo "iptables rule exists already: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
-     return
+  if [ "$INSERT_AT_LINE_NUMBER" == "0" ]; then
+    # exit function, if rule exists at the last linie already:
+    if $IPTABLES -n -L ${CHAIN} --line-numbers \
+       | tail -n 1 | egrep "^[0-9]+[ ]*${JUMP}"; then
+       [ "$DEBUG" == "true" ] && echo "iptables rule exists already"
+       return
+    fi
+    # create the entry
+    [ "$DEBUG" == "true" ] && echo "Appending entry: $IPTABLES -A ${CHAIN} -j ${JUMP}"
+    $IPTABLES -A ${CHAIN} -j ${JUMP} && EXIT_CODE=0
+  elif [ $INSERT_AT_LINE_NUMBER -gt 0 ]; then
+    # exit function, if rule exists on specified line number already:
+    if $IPTABLES -n -L ${CHAIN} --line-numbers \
+       | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${JUMP}"; then
+       [ "$DEBUG" == "true" ] && echo "iptables rule exists already: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
+       return
+    fi
+    # create the entry
+    [ "$DEBUG" == "true" ] && echo "Inserting entry at line: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
+    $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP} && EXIT_CODE=0
   fi
 
-  # create the entry
-  echo "Prepending entry: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
-  $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}
-
   # evaluate the success:
-  if [ "$?" == "0" ]; then
-    echo "Inserted successfully following iptables rule: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
-    $IPTABLES -n -L ${CHAIN}
-  else
-    echo "Failed to apply following iptables rule: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
+  if [ "$EXIT_CODE" == "1" ]; then
+    echo "$0: Failed to apply following command: $@"
     exit 1
   fi
 }
@@ -136,10 +126,31 @@ insertTargetAtLineNumberIfNeeded() {
 #      MAIN        #
 ####################
 
+# for logging:
+date
+
+definitions
+
+if [ "$(id -u)" != "0" ]; then
+  echo "This script ($0) must be run as root. Exiting..."
+  exit 1
+fi
+
+if [ "$#" == "0" ]; then
+  echo "usage: $0 dyndns-name1 dyndns-name2 ... dyndns-nameN"
+  exit 1
+fi
+
+# in case sudo is not defined, create an alias:
+sudo echo hello 2>/dev/null 1>/dev/null || alias sudo='$@'
+
+# prerequisite: bind-utils must be installed:
+sudo yum list installed | grep -q bind-utils || sudo yum install -y bind-utils
+
+
 # Create CUSTOM chains, if not present and set the default policy to "RETURN":
-create_iptable_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL
+create_iptable_chains CUSTOM-ACCEPT CUSTOM-DROP 
 modify_iptable_chain_policy RETURN CUSTOM-ACCEPT CUSTOM-DROP
-modify_iptable_chain_policy DROP CUSTOM-TAIL
 
 # Add CUSTOM-ACCEPT at line 1 of INPUT and FORWARD chains:
 for CHAIN in FORWARD INPUT; do
@@ -309,5 +320,10 @@ if ! $IPTABLES -L INPUT --line-numbers -n | grep "REJECT" | grep -q "0\.0\.0\.0\
    $IPTABLES -A INPUT -j REJECT --reject-with icmp-host-prohibited
 fi
 
-# once, all rules are in place, we can modify the INPUT default policy to DROP:
 modify_iptable_chain_policy DROP INPUT
+
+# once, all rules are in place, we can modify the INPUT default policy to DROP:
+create_iptable_chains CUSTOM-TAIL
+modify_iptable_chain_policy DROP CUSTOM-TAIL
+# TODO: separate de-duplication for custom append rules needed!!!
+
