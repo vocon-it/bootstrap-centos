@@ -32,6 +32,7 @@ else
   echo "Removing duplicate lines from iptables"
   # debugging:
   [ "$DEBUG" == "true" ] && echo "BEFORE:" && suDo iptables -n -L INPUT
+  [ "$DEBUG" == "true" ] && echo "duplicates: " && diff /tmp/iptables-save.awked /tmp/iptables-save
   suDo iptables-save \
     | awk '/^COMMIT|^:|^#/ {print $0} !/^COMMIT|^:|^#/ && !x[$0]++' \
     | suDo iptables-restore \

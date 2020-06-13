@@ -49,40 +49,34 @@ modify_iptable_chain_policy() {
   CHAINS=$@
 
   for CHAIN in $CHAINS; do
-    echo CHAIN=$CHAIN
     # set default policy:
     if [ "$POLICY" == "DROP" -o "$POLICY" == "ACCEPT" ] \
     && [ "$CHAIN" == "INPUT" -o "$CHAIN" == "FORWARD" -o "$CHAIN" == "OUTPUT" ]; then
       # default CHAIN policy in case of DROP and ACCEPT and built-in chain
       sudo $IPTABLES -P $CHAIN $POLICY || exit 1 && echo "default policy ${POLICY} added to $CHAIN"
-    elif ! sudo $IPTABLES -n -L $CHAIN | egrep -q '^${POLICY}[ ]+'; then
-      sudo $IPTABLES -A $CHAIN -j ${POLICY} && echo "default policy ${POLICY} added  to $CHAIN as explicit rule"
+    elif ! sudo $IPTABLES -n -L $CHAIN | egrep -q "^${POLICY}[ ]+"; then
+      sudo $IPTABLES -A $CHAIN -j ${POLICY} && echo "default policy ${POLICY} added to $CHAIN as explicit rule"
     fi
   done
 }
-
-
-##------------------- manual test 
-#create_iptable_chains BLA BLUB && echo success || exit 1
-#modify_iptable_chain_policy DROP BLA BLUB
-#$IPTABLES -n -L BLA
-#$IPTABLES -n -L BLUB
-#
-#modify_iptable_chain_policy ACCEPT INPUT
-#$IPTABLES -n -L INPUT
-#modify_iptable_chain_policy DROP INPUT
-#$IPTABLES -n -L INPUT
-#
-#exit 0
-##--------------------
-
-
 
 # Insert a rule at position $INSERT_AT_LINE_NUMBER, if it is not found at that place:
 insertTargetAtLineNumberIfNeeded() {
   usage() {
     echo "usage: [IPTABLES=...;] [INSERT_AT_LINE_NUMBER=...;] CHAIN=...; JUMP=...; $0"
     echo "INSERT_AT_LINE_NUMBER=0 means 'at the last line'"
+  }
+
+  clean_from_lower_line_duplicates() {
+    # clean $CHAIN from ${JUMP} duplicates found on lower line numbers (up to 3 duplicates)
+    for i in $(seq 1 3); do
+      if [ $($IPTABLES -n -L $CHAIN | egrep -c "^${JUMP}[ ]+all[ -]+0.0.0.0/0[ ]+0.0.0.0/0[ ]+$") -gt 1 ]; then
+        [ "$DEBUG" == "true" ] && echo "$0: ${FUNCNAME[0]}: found duplicate entry; deleting: $IPTABLES -D $CHAIN -j ${JUMP}"
+        $IPTABLES -D $CHAIN -j ${JUMP}
+      else
+        break
+      fi
+    done
   }
 
   IPTABLES=${IPTABLES:=/usr/sbin/iptables}
@@ -96,17 +90,21 @@ insertTargetAtLineNumberIfNeeded() {
   if [ "$INSERT_AT_LINE_NUMBER" == "0" ]; then
     # exit function, if rule exists at the last linie already:
     if $IPTABLES -n -L ${CHAIN} --line-numbers \
-       | tail -n 1 | egrep "^[0-9]+[ ]*${JUMP}"; then
+       | tail -n 1 | egrep -q "^[0-9]+[ ]*${JUMP}"; then
        [ "$DEBUG" == "true" ] && echo "iptables rule exists already"
+       clean_from_lower_line_duplicates
        return
+    else
+      # create the entry
+      [ "$DEBUG" == "true" ] && echo "Appending entry: $IPTABLES -A ${CHAIN} -j ${JUMP}"
+      $IPTABLES -A ${CHAIN} -j ${JUMP} && EXIT_CODE=0
+      clean_from_lower_line_duplicates
     fi
-    # create the entry
-    [ "$DEBUG" == "true" ] && echo "Appending entry: $IPTABLES -A ${CHAIN} -j ${JUMP}"
-    $IPTABLES -A ${CHAIN} -j ${JUMP} && EXIT_CODE=0
+
   elif [ $INSERT_AT_LINE_NUMBER -gt 0 ]; then
     # exit function, if rule exists on specified line number already:
     if $IPTABLES -n -L ${CHAIN} --line-numbers \
-       | egrep "^${INSERT_AT_LINE_NUMBER}[ ]*${JUMP}"; then
+       | egrep -q "^${INSERT_AT_LINE_NUMBER}[ ]*${JUMP}"; then
        [ "$DEBUG" == "true" ] && echo "iptables rule exists already: $IPTABLES -I ${CHAIN} ${INSERT_AT_LINE_NUMBER} -j ${JUMP}"
        return
     fi
@@ -120,6 +118,8 @@ insertTargetAtLineNumberIfNeeded() {
     echo "$0: Failed to apply following command: $@"
     exit 1
   fi
+
+
 }
 
 ####################
@@ -141,30 +141,46 @@ if [ "$#" == "0" ]; then
   exit 1
 fi
 
-# in case sudo is not defined, create an alias:
+#############
+# make sure sudo is defined (create an alias, if needed)
+#############
 sudo echo hello 2>/dev/null 1>/dev/null || alias sudo='$@'
 
-# prerequisite: bind-utils must be installed:
+#############
+# Install bind-utils if not present:
+#############
 sudo yum list installed | grep -q bind-utils || sudo yum install -y bind-utils
 
 
-# Create CUSTOM chains, if not present and set the default policy to "RETURN":
+#############
+# Create CUSTOM-ACCEPT and CUSTOM-DROP chains, if not present and set the default policy to "RETURN":
+#############
 create_iptable_chains CUSTOM-ACCEPT CUSTOM-DROP 
 modify_iptable_chain_policy RETURN CUSTOM-ACCEPT CUSTOM-DROP
 
+#############
 # Add CUSTOM-ACCEPT at line 1 of INPUT and FORWARD chains:
+#############
+# TODO: decide, if we need different CUSTOM-ACCEPT chains for INPUT and FORWARD chains
+#############
 for CHAIN in FORWARD INPUT; do
   JUMP=CUSTOM-ACCEPT; INSERT_AT_LINE_NUMBER=1
   insertTargetAtLineNumberIfNeeded
 done
 
+#############
+# Add CUSTOM-DROP at line 2 of INPUT and FORWARD chains:
+#############
 # TODO: decide, if we need different CUSTOM-DROP chains for INPUT and FORWARD chains
+#############
 for CHAIN in FORWARD INPUT; do
   JUMP=CUSTOM-DROP; INSERT_AT_LINE_NUMBER=2
   insertTargetAtLineNumberIfNeeded
 done
 
-# STATIC ACCEPTED NETWORKS
+#############
+# Add static accepted networks
+#############
 for CHAIN in CUSTOM-ACCEPT; do
   # prepend a rule that accepts all outgoing traffic, if not already present:
   $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I ${CHAIN} 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
@@ -207,7 +223,9 @@ for CHAIN in CUSTOM-ACCEPT; do
   fi
 done
 
+#############
 # DYNAMIC ACCEPTED FQDNs OR IP ADDRESSES
+#############
 while (( "$#" )); do
 
   DYNDNSNAME=$1
@@ -267,13 +285,17 @@ while (( "$#" )); do
     fi
   done
 
-shift
+  shift
 
 done
 
+
+#############
+# Control Web Access and VNC Access
+############
 # TODO: if ENABLE_PUBLIC_WEB_ACCESS=true, we need to act on VNC separately.
 #       better create a function that can be called with 80, 443, 5901 and 6901?
-
+############
 if [ "ENABLE_PUBLIC_WEB_ACCESS" == "true" ]; then
   # enable web access (commented out, because we do not allow web traffic for now):
   $IPTABLES -L CUSTOM-ACCEPT --line-numbers -n | grep "ACCEPT" | grep -q "dpt:80 " || $IPTABLES -I CUSTOM-ACCEPT 1 -p tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
@@ -309,21 +331,31 @@ else
   done
 fi
 
+#############
+# CUSTOM-TAIL of INPUT for Logging
+#############
+CHAIN=CUSTOM-TAIL
+create_iptable_chains $CHAIN
 
-# TODO: make sure that reject port 22, the log and the REJECT any are placed at the end of the INPUT chain:
-# append a reject any with logging, if not already present:
-if ! $IPTABLES -L INPUT --line-numbers -n | grep "REJECT" | grep -q "0\.0\.0\.0\/0[ \t]*0\.0\.0\.0\/0"; then
-   # we filter SSH login attempts without logging:
-   $IPTABLES -A INPUT -s 0.0.0.0/0 -p TCP --dport 22 -j REJECT
-   # we filter the rest with logging:
-   $IPTABLES -A INPUT -s 0.0.0.0/0 -j LOG --log-prefix "iptables:REJECT all: "
-   $IPTABLES -A INPUT -j REJECT --reject-with icmp-host-prohibited
+# filter SSH login attempts without logging:
+if ! $IPTABLES -n -L $CHAIN --line-numbers | egrep "DROP[ ]+tcp[ -]+0.0.0.0/0[ ]+0.0.0.0/0[ ]+tcp[ ]+dpt:22"; then
+  [ "$DEBUG" == "true" ] && echo "$0: Adding filter for SSH" 
+  $IPTABLES -A $CHAIN -s 0.0.0.0/0 -p TCP --dport 22 -j DROP
 fi
 
+# Log all other traffic:
+if ! $IPTABLES -n -L $CHAIN --line-numbers | egrep -q "LOG[ ]+all[ -]+0.0.0.0/0[ ]+0.0.0.0/0[ ]+LOG"; then
+   # we log the rest:
+  [ "$DEBUG" == "true" ] && echo "$0: Adding Log entry" 
+   $IPTABLES -A $CHAIN -s 0.0.0.0/0 -j LOG --log-prefix "iptables: DROP any: "
+fi
+
+# Append to INPUT chain:
+INSERT_AT_LINE_NUMBER=0; CHAIN=INPUT; JUMP=CUSTOM-TAIL; insertTargetAtLineNumberIfNeeded
+ 
+#############
+# Default DROP policy on INPUT chain
+#############
 modify_iptable_chain_policy DROP INPUT
 
-# once, all rules are in place, we can modify the INPUT default policy to DROP:
-create_iptable_chains CUSTOM-TAIL
-modify_iptable_chain_policy DROP CUSTOM-TAIL
-# TODO: separate de-duplication for custom append rules needed!!!
 
