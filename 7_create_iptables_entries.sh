@@ -42,7 +42,7 @@ if [ "$KUBERNETES" == "" ]; then
     && export KUBERNETES=true # Note: $KUBERNETES is needed by_7_create_iptables_entries.sh
 fi
 
-if [ "$KUBERNETES" == "" ]; then
+if [ "$DCOS" == "" ]; then
   answer=no
   read -t 10 -p "Is this a DC/OS installation? (no) > " answer
   [ "$answer" == "y" -o "$answer" == "yes" ] \
