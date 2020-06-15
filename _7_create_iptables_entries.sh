@@ -163,7 +163,8 @@ modify_iptable_chain_policy RETURN CUSTOM-ACCEPT CUSTOM-DROP
 #############
 # TODO: decide, if we need different CUSTOM-ACCEPT chains for INPUT and FORWARD chains
 #############
-for CHAIN in FORWARD INPUT; do
+for CHAIN in INPUT; do
+#for CHAIN in FORWARD INPUT; do
   JUMP=CUSTOM-ACCEPT; INSERT_AT_LINE_NUMBER=1
   insertTargetAtLineNumberIfNeeded
 done
@@ -173,7 +174,8 @@ done
 #############
 # TODO: decide, if we need different CUSTOM-DROP chains for INPUT and FORWARD chains
 #############
-for CHAIN in FORWARD INPUT; do
+for CHAIN in INPUT; do
+#for CHAIN in FORWARD INPUT; do
   JUMP=CUSTOM-DROP; INSERT_AT_LINE_NUMBER=2
   insertTargetAtLineNumberIfNeeded
 done
@@ -245,7 +247,6 @@ while (( "$#" )); do
 
   [[ ! $Current_IP =~ $re ]] && echo "ERROR: Cannot find IP address for FQDN=$DYNDNSNAME! Exiting ..." &&  exit 1
 
-  # Current_IP
   [ "$DEBUG" == "true" ] && echo Current_IP=$Current_IP
 
   for CHAIN in CUSTOM-ACCEPT; do
