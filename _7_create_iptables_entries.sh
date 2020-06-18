@@ -52,8 +52,9 @@ modify_iptable_chain_policy() {
     # set default policy:
     if [ "$POLICY" == "DROP" -o "$POLICY" == "ACCEPT" ] \
     && [ "$CHAIN" == "INPUT" -o "$CHAIN" == "FORWARD" -o "$CHAIN" == "OUTPUT" ]; then
-      # default CHAIN policy in case of DROP and ACCEPT and built-in chain
-      sudo $IPTABLES -P $CHAIN $POLICY || exit 1 && echo "default policy ${POLICY} added to $CHAIN"
+      # default CHAIN policy in case of DROP and ACCEPT and built-in chain, add policy, if not already present
+      $IPTABLES -S "$CHAIN" | head -1 | egrep -q -v "^-P $CHAIN $POLICY$" \
+        && sudo $IPTABLES -P $CHAIN $POLICY || exit 1 && echo "default policy ${POLICY} added to $CHAIN"
     elif ! sudo $IPTABLES -n -L $CHAIN | egrep -q "^${POLICY}[ ]+"; then
       sudo $IPTABLES -A $CHAIN -j ${POLICY} && echo "default policy ${POLICY} added to $CHAIN as explicit rule"
     fi
@@ -87,7 +88,15 @@ insertTargetAtLineNumberIfNeeded() {
   [ "$JUMP" == "NOT_DEFINED" ] && echo "JUMP is not defined. Exiting..." && usage && exit 1
   EXIT_CODE=1
 
+  DEBUG=true
   if [ "$INSERT_AT_LINE_NUMBER" == "0" ]; then
+    # check, if the current chain has an explicit policy rule:
+    $IPTABLES -S $CHAIN | tail -n 1 | egrep -q "^-A $CHAIN -j " && INSERT_AT_LINE_NUMBER="$(expr $(iptables -S $CHAIN | wc -l) - 1)"
+    if [ "$INSERT_AT_LINE_NUMBER" != "0" ]; then
+      # line number has changed;
+      [ "$DEBUG" == "true" ] && echo "INSERT_AT_LINE_NUMBER has changed: $INSERT_AT_LINE_NUMBER"
+      insertTargetAtLineNumberIfNeeded && return 0 || return 1
+    fi
     # exit function, if rule exists at the last linie already:
     if $IPTABLES -n -L ${CHAIN} --line-numbers \
        | tail -n 1 | egrep -q "^[0-9]+[ ]*${JUMP}"; then
@@ -118,9 +127,38 @@ insertTargetAtLineNumberIfNeeded() {
     echo "$0: Failed to apply following command: $@"
     exit 1
   fi
-
-
 }
+
+is_rule_present() {
+  definitions
+  # usage: $0 <rule-in-S-notation>
+  #        returns true or false
+  __CHAIN=$(echo $RULE | awk '{print $2}')
+  $IPTABLES -S $__CHAIN | egrep -q "^$(echo $@ | sed 's_-_\\-_g')$"
+}
+
+RULE="-A  CUSTOM-ACCEPT -s 192.168.0.0/16 -j ACCEPT"
+is_rule_present $RULE && echo rule is present
+#exit 0
+
+diff_CUSTOM-ACCEPT() {
+
+  # create/flush TTT2 chain
+  iptables -N TTT2 2>/dev/null
+  iptables -F TTT2 
+  # create TTT2 rules from CUSTOM-ACCEPT.config file:
+  export CHAIN=TTT2 && cat CUSTOM-ACCEPT.config | envsubst | egrep -v "^#" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | xargs -L 1 iptables
+  # export TTT2 chain to CUSTOM-ACCEPT.config.resolved file
+  iptables -S TTT2 | sed 's/TTT2/CUSTOM-ACCEPT/g' > CUSTOM-ACCEPT.config.resolved 
+  # save current CUSTOM-ACCEPT rules
+  iptables -S CUSTOM-ACCEPT > CUSTOM-ACCEPT.save; 
+
+  diff CUSTOM-ACCEPT.save CUSTOM-ACCEPT.config.resolved
+}
+
+diff_CUSTOM-ACCEPT
+exit 0
+-----------------
 
 ####################
 #      MAIN        #
@@ -183,15 +221,16 @@ done
 #############
 # Add static accepted networks
 #############
+JUMP=ACCEPT
 for CHAIN in CUSTOM-ACCEPT; do
   # prepend a rule that accepts all outgoing traffic, if not already present:
-  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I ${CHAIN} 1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "$JUMP" | grep -q "state RELATED,ESTABLISHED" || $IPTABLES -I ${CHAIN} 1 -m state --state RELATED,ESTABLISHED -j $JUMP
 
   # prepend a rule that accepts all traffic from local Docker containers, if not already present:
-  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "172.17.0.0/16" || $IPTABLES -I ${CHAIN} 1  -s "172.17.0.0/16" -j ACCEPT
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "$JUMP" | grep -q "172.17.0.0/16" || $IPTABLES -I ${CHAIN} 1  -s "172.17.0.0/16" -j $JUMP
 
   # prepend an allow any from loopback:
-  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "127\.0\.0\.0\/8" || $IPTABLES -I ${CHAIN} 1 -s 127.0.0.0/8 -j ACCEPT
+  $IPTABLES -L ${CHAIN} --line-numbers -n | grep "$JUMP" | grep -q "127\.0\.0\.0\/8" || $IPTABLES -I ${CHAIN} 1 -s 127.0.0.0/8 -j $JUMP
 
   # prepend rules that accept traffic from private addresses:
   LOCAL_IP_NETWORK_LIST="10.0.0.0/8 192.168.0.0/16"
@@ -199,7 +238,7 @@ for CHAIN in CUSTOM-ACCEPT; do
     [ "$DEBUG" == "true" ] && echo LOCAL_IP_NETWORK=$LOCAL_IP_NETWORK
     if echo $LOCAL_IP_NETWORK | grep "^[1-9][0-9]\{0,2\}\."; then
       # $LOCAL_IP_NETWORK is an IPv4 network and will be added, if not already present:
-      $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q $LOCAL_IP_NETWORK ||  $IPTABLES -I ${CHAIN} 1 -s "$LOCAL_IP_NETWORK" -j ACCEPT
+      $IPTABLES -L ${CHAIN} --line-numbers -n | grep "$JUMP" | grep -q $LOCAL_IP_NETWORK ||  $IPTABLES -I ${CHAIN} 1 -s "$LOCAL_IP_NETWORK" -j $JUMP
     fi
   done
 
@@ -209,25 +248,27 @@ for CHAIN in CUSTOM-ACCEPT; do
     # echo LOCAL_IP=$LOCAL_IP
     if echo $LOCAL_IP | grep "^[1-9][0-9]\{0,2\}\."; then
       # $LOCAL_IP is an IPv4 address and will be added, if not already present:
-      $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q $LOCAL_IP ||  $IPTABLES -I ${CHAIN} 1 -s "$LOCAL_IP/32" -j ACCEPT
+      $IPTABLES -L ${CHAIN} --line-numbers -n | grep "$JUMP" | grep -q $LOCAL_IP ||  $IPTABLES -I ${CHAIN} 1 -s "$LOCAL_IP/32" -j $JUMP
     fi
   done
 
   # prepend a rule that accepts all traffic from Kubernetes Weave containers, if not already present:
   if [ "$KUBERNETES" == "true" ]; then
-    $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN} 1  -s "10.32.0.0/12" -j ACCEPT
+    $IPTABLES -L ${CHAIN} --line-numbers -n | grep "$JUMP" | grep -q "10.32.0.0/12" || $IPTABLES -I ${CHAIN} 1  -s "10.32.0.0/12" -j $JUMP
   fi
 
   # Prepend rules for DC/OS specific loopback addresses, if not already present:
   if [ "$DCOS" == "true" ]; then
-    $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "198\.51\.100\.0\/24" || $IPTABLES -I ${CHAIN} 1 -s 198.51.100.0/24 -j ACCEPT
-    $IPTABLES -L ${CHAIN} --line-numbers -n | grep "ACCEPT" | grep -q "44\.128\.0\.0\/20" || $IPTABLES -I ${CHAIN} 1 -s 44.128.0.2/20 -j ACCEPT
+    $IPTABLES -L ${CHAIN} --line-numbers -n | grep "$JUMP" | grep -q "198\.51\.100\.0\/24" || $IPTABLES -I ${CHAIN} 1 -s 198.51.100.0/24 -j $JUMP
+    $IPTABLES -L ${CHAIN} --line-numbers -n | grep "$JUMP" | grep -q "44\.128\.0\.0\/20" || $IPTABLES -I ${CHAIN} 1 -s 44.128.0.2/20 -j $JUMP
   fi
 done
 
 #############
 # DYNAMIC ACCEPTED FQDNs OR IP ADDRESSES
 #############
+JUMP=ACCEPT
+CHAINS="CUSTOM-ACCEPT"
 while (( "$#" )); do
 
   DYNDNSNAME=$1
@@ -249,7 +290,7 @@ while (( "$#" )); do
 
   [ "$DEBUG" == "true" ] && echo Current_IP=$Current_IP
 
-  for CHAIN in CUSTOM-ACCEPT; do
+  for CHAIN in $CHAINS; do
     # Old_IP
     [ -e ${LAST_IP_FILE}_$CHAIN ] && Old_IP=$(cat ${LAST_IP_FILE}_$CHAIN) || unset Old_IP
     [ "$DEBUG" == "true" ] && echo Old_IP=$Old_IP
@@ -262,8 +303,8 @@ while (( "$#" )); do
       # not found in iptables. Create Entry:
       # TODO: which ACTION is needed in the CUSTOM chains?
 #      [ "$(echo $CHAIN | cut -5)" == "CUSTOM" ] && ACTION=RETURN || ACTION=ACCEPT
-      ACTION=ACCEPT
-      $IPTABLES -I $CHAIN -s $Current_IP -j $ACTION \
+#      ACTION=ACCEPT
+      $IPTABLES -I $CHAIN -s $Current_IP -j $JUMP \
         && echo $Current_IP > ${LAST_IP_FILE}_$CHAIN \
         && echo "$(basename $0): $DYNDNSNAME: iptables new entry added: 'iptables -I $CHAIN $LINE_NUMBER -s $Current_IP -j ACCEPT'"
     else
@@ -279,9 +320,9 @@ while (( "$#" )); do
           && echo REVERSE_LINE_NUMBERS=$REVERSE_LINE_NUMBERS \
           && for line in $REVERSE_LINE_NUMBERS; do echo removing line $line; $IPTABLES -D $CHAIN $line; done
         # the lowest line number will be replaced by the new IP address:
-        $IPTABLES -I $CHAIN $LINE_NUMBER_LOWEST -s $Current_IP -j ACCEPT \
+        $IPTABLES -I $CHAIN $LINE_NUMBER_LOWEST -s $Current_IP -j $JUMP \
           && echo $Current_IP > ${LAST_IP_FILE}_$CHAIN \
-          && echo "$(basename $0): $DYNDNSNAME: iptables have been updated with 'iptables -I $CHAIN $LINE_NUMBER -s $Current_IP -j ACCEPT'"
+          && echo "$(basename $0): $DYNDNSNAME: iptables have been updated with 'iptables -I $CHAIN $LINE_NUMBER -s $Current_IP -j $JUMP'"
       fi
     fi
   done
