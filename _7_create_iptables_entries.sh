@@ -62,7 +62,7 @@ modify_iptable_chain_policy() {
 }
 
 # Insert a rule at position $INSERT_AT_LINE_NUMBER, if it is not found at that place:
-insertTargetAtLineNumberIfNeeded() {
+insert-rule-at-line() {
   usage() {
     echo "usage: [IPTABLES=...;] [INSERT_AT_LINE_NUMBER=...;] CHAIN=...; JUMP=...; $0"
     echo "INSERT_AT_LINE_NUMBER=0 means 'at the last line'"
@@ -94,7 +94,7 @@ insertTargetAtLineNumberIfNeeded() {
     if [ "$INSERT_AT_LINE_NUMBER" != "0" ]; then
       # line number has changed;
       [ "$DEBUG" == "true" ] && echo "INSERT_AT_LINE_NUMBER has changed: $INSERT_AT_LINE_NUMBER"
-      insertTargetAtLineNumberIfNeeded && return 0 || return 1
+      insert-rule-at-line && return 0 || return 1
     fi
     # exit function, if rule exists at the last linie already:
     if $IPTABLES -n -L ${CHAIN} --line-numbers \
@@ -126,6 +126,7 @@ insertTargetAtLineNumberIfNeeded() {
     echo "$0: Failed to apply following command: $@"
     return 1
   fi
+  unset CHAIN CHAINS INSERT_AT_LINE_NUMBER
 }
 
 is_rule_present() {
@@ -158,51 +159,53 @@ update_iptables_chain() {
   # Definition of internal variables:
   IPTABLES=${IPTABLES:=/usr/sbin/iptables}
   __CHAIN=$1
-  __CONFIG_FILE=$(dirname $0)/${__CHAIN}.config
+  __CONFIG_DIR=${CONFIG_DIR:=$(dirname $0)}
+  __CONFIG_FILE=${__CHAIN}.config
+  __TMP=${TMP:=/tmp}
 
   # Input validation
   [ "$#" != "1" ] && usage && return 1
-  [ ! -r "${__CONFIG_FILE}" ] && echo "File ${__CONFIG_FILE} not found on $(pwd)" && return 1
+  [ ! -r "${__CONFIG_DIR}/${__CONFIG_FILE}" ] && echo "File ${__CONFIG_DIR}/${__CONFIG_FILE} not found on $(pwd)" && return 1
 
   [ "$DEBUG" == "true" ] && echo "$0: ${FUNCNAME[0]}: Chain ${__CHAIN} has follwing config"
-  [ "$DEBUG" == "true" ] && cat ${__CONFIG_FILE}
+  [ "$DEBUG" == "true" ] && cat ${__CONFIG_DIR}/${__CONFIG_FILE}
 
   # create/flush TEMP-CHAIN chain
   $IPTABLES -N TEMP-CHAIN 2>/dev/null
   $IPTABLES -F TEMP-CHAIN 
   
   # number or rules for plausibility:
-  NUMBER_OF_CONFIG_LINES=$(cat "${__CONFIG_FILE}" | grep -c '\-j')
+  NUMBER_OF_CONFIG_LINES=$(cat "${__CONFIG_DIR}/${__CONFIG_FILE}" | grep -c '\-j')
   [ "$NUMBER_OF_CONFIG_LINES" == "0" ] && echo "$0: ${FUNCNAME[0]}: No configuration found. Returning..." && return 1
 
-  # create TEMP-CHAIN rules from ${__CONFIG_FILE} file:
-  cat ${__CONFIG_FILE} \
+  # create TEMP-CHAIN rules from ${__CONFIG_DIR}/${__CONFIG_FILE} file:
+  cat ${__CONFIG_DIR}/${__CONFIG_FILE} \
     | envsubst \
     | egrep -v "^#" \
     | egrep -v "^[ ]*$" \
     | awk -F '-A [^ ]* ' '{print $2}' \
     | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'  \
     | xargs -L 1 $IPTABLES -A TEMP-CHAIN
-  # export TEMP-CHAIN chain to ${__CONFIG_FILE}.resolved file
-  $IPTABLES -S TEMP-CHAIN | sed "s/TEMP-CHAIN/${__CHAIN}/g" > "${__CONFIG_FILE}.resolved"
+  # export TEMP-CHAIN chain to ${__CONFIG_DIR}/${__CONFIG_FILE}.resolved file
+  $IPTABLES -S TEMP-CHAIN | sed "s/TEMP-CHAIN/${__CHAIN}/g" > "${__TMP}/${__CONFIG_FILE}.resolved"
 
   # Plausibility check:
-  NUMBER_OF_CONFIG_LINES_UPDATED=$(cat "${__CONFIG_FILE}.resolved" | grep -c '\-j')
+  NUMBER_OF_CONFIG_LINES_UPDATED=$(cat "${__TMP}/${__CONFIG_FILE}.resolved" | grep -c '\-j')
   [ "$NUMBER_OF_CONFIG_LINES" != "$NUMBER_OF_CONFIG_LINES_UPDATED" ] \
     && echo "$0: ${FUNCNAME[0]}: ERROR: Only $NUMBER_OF_CONFIG_LINES_UPDATED of all config lines ($NUMBER_OF_CONFIG_LINES) were successful. Therefore the chain $__CHAIN will not be updated at all. Returning..." \
     && echo "config file:" \
-    && cat "${__CONFIG_FILE}" \
+    && cat "${__CONFIG_DIR}/${__CONFIG_FILE}" \
     && echo "result:" \
-    && cat "${__CONFIG_FILE}.resolved" \
+    && cat "${__TMP}/${__CONFIG_FILE}.resolved" \
     && return 1
 
   # save current ${__CHAIN} rules to a file, so it can be compared to the updated version
-  $IPTABLES -S ${__CHAIN} > ${__CHAIN}.save; 
+  $IPTABLES -S ${__CHAIN} > "${__TMP}/${__CHAIN}.save"; 
 
-  if ! diff ${__CHAIN}.save ${__CONFIG_FILE}.resolved >/dev/null; then
+  if ! diff "${__TMP}/${__CHAIN}.save" "${__TMP}/${__CONFIG_FILE}.resolved" >/dev/null; then
     # files are different; therefore the chain must be replaced by the resolved version of the configured chain
     $IPTABLES -F ${__CHAIN} \
-      && cat ${__CONFIG_FILE}.resolved | xargs -L 1 $IPTABLES
+      && cat "${__TMP}/${__CONFIG_FILE}.resolved" | xargs -L 1 $IPTABLES
       echo "$0: ${FUNCNAME[0]}: iptables chain ${__CHAIN} updated"
       [ "$DEBUG" == "true" ] && $IPTABLES -S ${__CHAIN}
   else
@@ -252,58 +255,43 @@ sudo echo hello 2>/dev/null 1>/dev/null || alias sudo='$@'
 #############
 sudo yum list installed | grep -q bind-utils || sudo yum install -y bind-utils
 
+CHAINS="CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL CUSTOM-FORWARD-HEAD"
 
 #############
-# Create CUSTOM-ACCEPT and CUSTOM-DROP chains, if not present and set the default policy to "RETURN":
+# Create chains
 #############
-create_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP 
-#modify_iptable_chain_policy RETURN CUSTOM-ACCEPT CUSTOM-DROP
+create_iptables_chains $CHAINS
 
 #############
-# Add CUSTOM-ACCEPT at line 1 of INPUT and FORWARD chains:
+# Update chains from config files
 #############
-# TODO: decide, if we need different CUSTOM-ACCEPT chains for INPUT and FORWARD chains
-#############
-for CHAIN in INPUT; do
-#for CHAIN in FORWARD INPUT; do
-  JUMP=CUSTOM-ACCEPT; INSERT_AT_LINE_NUMBER=1
-  insertTargetAtLineNumberIfNeeded
+for CHAIN in $CHAINS; do
+  update_iptables_chain $CHAIN
 done
+unset CHAIN CHAINS
 
 #############
-# Add CUSTOM-DROP at line 2 of INPUT and FORWARD chains:
+# Add CUSTOM-ACCEPT at line 1 of INPUT chain:
 #############
-# TODO: decide, if we need different CUSTOM-DROP chains for INPUT and FORWARD chains
-#############
-for CHAIN in INPUT; do
-#for CHAIN in FORWARD INPUT; do
-  JUMP=CUSTOM-DROP; INSERT_AT_LINE_NUMBER=2
-  insertTargetAtLineNumberIfNeeded
-done
-
-update_iptables_chain CUSTOM-ACCEPT
-update_iptables_chain CUSTOM-DROP
+CHAIN=INPUT; INSERT_AT_LINE_NUMBER=1; JUMP=CUSTOM-ACCEPT; insert-rule-at-line
 
 #############
-# CUSTOM-TAIL of INPUT for Logging
+# Add CUSTOM-DROP at line 2 of INPUT chain:
 #############
-create_iptables_chains CUSTOM-TAIL
-update_iptables_chain CUSTOM-TAIL
+CHAIN=INPUT; INSERT_AT_LINE_NUMBER=2; JUMP=CUSTOM-DROP; insert-rule-at-line
 
-# Append CUSTOM-TAIL to INPUT chain:
-INSERT_AT_LINE_NUMBER=0; CHAIN=INPUT; JUMP=CUSTOM-TAIL; insertTargetAtLineNumberIfNeeded
+#############
+# Add CUSTOM-TAIL at end of INPUT
+#############
+CHAIN=INPUT; INSERT_AT_LINE_NUMBER=0; JUMP=CUSTOM-TAIL; insert-rule-at-line
+
+#############
+# Add CUSTOM-TAIL at line 1 of FORWARD
+#############
+INSERT_AT_LINE_NUMBER=1; JUMP=CUSTOM-FORWARD-HEAD; insert-rule-at-line
  
 #############
 # Default ACCEPT policy on INPUT chain
 #############
 modify_iptable_chain_policy ACCEPT INPUT
 
-#############
-# CUSTOM-FORWARD-HEAD for securing the FORWARD chain
-#############
-create_iptables_chains CUSTOM-FORWARD-HEAD
-update_iptables_chain CUSTOM-FORWARD-HEAD
-
-# Prepend to FORWARD chain:
-INSERT_AT_LINE_NUMBER=1; CHAIN=FORWARD; JUMP=CUSTOM-FORWARD-HEAD; insertTargetAtLineNumberIfNeeded
- 
