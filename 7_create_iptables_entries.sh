@@ -347,12 +347,6 @@ fi
 #  ADDIP="$@"
 #fi
 
-
-#############
-# make sure sudo is defined (create an alias, if needed)
-#############
-sudo echo hello 2>/dev/null 1>/dev/null || alias sudo='$@'
-
 #############
 # Install bind-utils if not present:
 #############
