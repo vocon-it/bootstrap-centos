@@ -205,7 +205,7 @@ update_iptables_chain() {
     [ "$DEBUG" == "true" ] && echo "$0: ${FUNCNAME[0]}: iptables chain $CHAIN and the FQDNs therein have not changed"
   fi
   [ "$DEBUG" == "true" ] && echo "$0: ${FUNCNAME[0]}: iptables chain $CHAIN content after update:"
-  [ "$DEBUG" == "true" ] && iptables -S $CHAIN
+  [ "$DEBUG" == "true" ] && $IPTABLES -S $CHAIN
 
 
   # cleaning
@@ -297,9 +297,9 @@ modify_iptable_chain_policy ACCEPT INPUT
 #############
 # CUSTOM-FORWARD-HEAD for securing the FORWARD chain
 #############
-create_iptable_chains CUSTOM-FORWARD-HEAD && echo CUSTOM-FORWARD-HEAD created || echo failed creating CUSTOM-FORWARD-HEAD
-update_iptables_chain CUSTOM-FORWARD-HEAD && echo CUSTOM-FORWARD-HEAD updated || echo failed updating CUSTOM-FORWARD-HEAD
+create_iptable_chains CUSTOM-FORWARD-HEAD
+update_iptables_chain CUSTOM-FORWARD-HEAD
 
 # Prepend to FORWARD chain:
-INSERT_AT_LINE_NUMBER=1; CHAIN=FORWARD; JUMP=CUSTOM-FORWARD-HEAD; insertTargetAtLineNumberIfNeeded && echo CUSTOM-FORWARD-HEAD inserted || echo failed inserting CUSTOM-FORWARD-HEAD
+INSERT_AT_LINE_NUMBER=1; CHAIN=FORWARD; JUMP=CUSTOM-FORWARD-HEAD; insertTargetAtLineNumberIfNeeded
  
