@@ -24,7 +24,7 @@ if [ "$#" == "0" ]; then
   # programm is called with no arguments
   MY_IP=$(echo $SSH_CLIENT | awk '{ print $1}')
   # prepend your own SSH source IP, if present:
-  ADDIP="$MY_IP $ADDIP"
+  export ADDIP="$MY_IP $ADDIP"
 else 
   # program is called with arguments; use those arguments only
   ADDIP="$@"

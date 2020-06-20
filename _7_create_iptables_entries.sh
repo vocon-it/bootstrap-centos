@@ -20,7 +20,7 @@ definitions(){
 }
 
 
-create_iptable_chains(){
+create_iptables_chains(){
   definitions
 
   if [ $# -le 0 ]; then
@@ -81,7 +81,6 @@ insertTargetAtLineNumberIfNeeded() {
   }
 
   IPTABLES=${IPTABLES:=/usr/sbin/iptables}
-  echo IPTABLES=$IPTABLES
   CHAIN=${CHAIN:=NOT_DEFINED}
   INSERT_AT_LINE_NUMBER=${INSERT_AT_LINE_NUMBER:=1}
   JUMP=${JUMP:=NOT_DEFINED}
@@ -185,11 +184,17 @@ update_iptables_chain() {
     | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'  \
     | xargs -L 1 $IPTABLES -A TEMP-CHAIN
   # export TEMP-CHAIN chain to ${__CONFIG_FILE}.resolved file
-  $IPTABLES -S TEMP-CHAIN | sed "s/TEMP-CHAIN/${__CHAIN}/g" > ${__CONFIG_FILE}.resolved 
+  $IPTABLES -S TEMP-CHAIN | sed "s/TEMP-CHAIN/${__CHAIN}/g" > "${__CONFIG_FILE}.resolved"
 
   # Plausibility check:
   NUMBER_OF_CONFIG_LINES_UPDATED=$(cat "${__CONFIG_FILE}.resolved" | grep -c '\-j')
-  [ "$NUMBER_OF_CONFIG_LINES" != "$NUMBER_OF_CONFIG_LINES_UPDATED" ] && echo "Only $NUMBER_OF_CONFIG_LINES_UPDATED of all config lines ($NUMBER_OF_CONFIG_LINES) were successful. Therefore the chain will not be updated at all. Returning..." && return 1
+  [ "$NUMBER_OF_CONFIG_LINES" != "$NUMBER_OF_CONFIG_LINES_UPDATED" ] \
+    && echo "$0: ${FUNCNAME[0]}: ERROR: Only $NUMBER_OF_CONFIG_LINES_UPDATED of all config lines ($NUMBER_OF_CONFIG_LINES) were successful. Therefore the chain $__CHAIN will not be updated at all. Returning..." \
+    && echo "config file:" \
+    && cat "${__CONFIG_FILE}" \
+    && echo "result:" \
+    && cat "${__CONFIG_FILE}.resolved" \
+    && return 1
 
   # save current ${__CHAIN} rules to a file, so it can be compared to the updated version
   $IPTABLES -S ${__CHAIN} > ${__CHAIN}.save; 
@@ -213,7 +218,7 @@ update_iptables_chain() {
 
 #-----------------
 # manual test of update_iptables_chain()
-#create_iptable_chains CUSTOM-FORWARD-HEAD
+#create_iptables_chains CUSTOM-FORWARD-HEAD
 #update_iptables_chain CUSTOM-FORWARD-HEAD
 #exit 0
 #-----------------
@@ -251,7 +256,7 @@ sudo yum list installed | grep -q bind-utils || sudo yum install -y bind-utils
 #############
 # Create CUSTOM-ACCEPT and CUSTOM-DROP chains, if not present and set the default policy to "RETURN":
 #############
-create_iptable_chains CUSTOM-ACCEPT CUSTOM-DROP 
+create_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP 
 #modify_iptable_chain_policy RETURN CUSTOM-ACCEPT CUSTOM-DROP
 
 #############
@@ -282,10 +287,10 @@ update_iptables_chain CUSTOM-DROP
 #############
 # CUSTOM-TAIL of INPUT for Logging
 #############
-create_iptable_chains CUSTOM-TAIL
+create_iptables_chains CUSTOM-TAIL
 update_iptables_chain CUSTOM-TAIL
 
-# Append to INPUT chain:
+# Append CUSTOM-TAIL to INPUT chain:
 INSERT_AT_LINE_NUMBER=0; CHAIN=INPUT; JUMP=CUSTOM-TAIL; insertTargetAtLineNumberIfNeeded
  
 #############
@@ -296,7 +301,7 @@ modify_iptable_chain_policy ACCEPT INPUT
 #############
 # CUSTOM-FORWARD-HEAD for securing the FORWARD chain
 #############
-create_iptable_chains CUSTOM-FORWARD-HEAD
+create_iptables_chains CUSTOM-FORWARD-HEAD
 update_iptables_chain CUSTOM-FORWARD-HEAD
 
 # Prepend to FORWARD chain:
