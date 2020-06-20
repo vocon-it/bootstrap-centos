@@ -89,7 +89,6 @@ insertTargetAtLineNumberIfNeeded() {
   [ "$JUMP" == "NOT_DEFINED" ] && echo "JUMP is not defined. Exiting..." && usage && return 1
   EXIT_CODE=1
 
-  DEBUG=true
   if [ "$INSERT_AT_LINE_NUMBER" == "0" ]; then
     # check, if the current chain has an explicit policy rule:
     $IPTABLES -S $CHAIN | tail -n 1 | egrep -q "^-A $CHAIN -j " && INSERT_AT_LINE_NUMBER="$(expr $($IPTABLES -S $CHAIN | wc -l) - 1)"
