@@ -56,3 +56,6 @@ $(cd $(dirname $0); pwd)/_$(basename $0) $ADDIP
 
 # remove duplicate entries:
 $(cd $(dirname $0); pwd)/_7_2_remove_duplicate_iptable_entries.sh
+
+IPTABLES=${IPTABLES:=/usr/sbin/iptables}
+$IPTABLES -P INPUT ACCEPT
