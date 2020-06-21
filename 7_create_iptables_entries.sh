@@ -194,12 +194,12 @@ update_iptables_chain() {
   # Definition of internal variables:
   IPTABLES=${IPTABLES:=/usr/sbin/iptables}
   __CHAIN=$1
-  __CONFIG_DIR=${CONFIG_DIR:=$(dirname $0)}
+  __CONFIG_DIR=${CONFIG_DIR:=$(echo ${0%.*} | sed 's_\([^/]*$\)_.\1_')}
   __CONFIG_FILE=${__CHAIN}.config
   __TMP=${TMP:=/tmp}
 
   # Input validation
-  [ "$#" != "1" ] && usage && return 1
+  [ "$#" != "1" ] && echo "ERROR: wrong number of arguments ($# instead of 1)" && usage && return 1
   [ ! -r "${__CONFIG_DIR}/${__CONFIG_FILE}" ] && echo "File ${__CONFIG_DIR}/${__CONFIG_FILE} not found on $(pwd)" && return 1
 
   [ "$DEBUG" == "true" ] && echo "$0: ${FUNCNAME[0]}: Chain ${__CHAIN} has follwing config"
@@ -213,26 +213,25 @@ update_iptables_chain() {
   NUMBER_OF_CONFIG_LINES=$(cat "${__CONFIG_DIR}/${__CONFIG_FILE}" | egrep -v "^#" | egrep -v "^[ ]*$" | grep -c '\-j')
   [ "$NUMBER_OF_CONFIG_LINES" == "0" ] && echo "$0: ${FUNCNAME[0]}: No configuration found. Returning..." && return 1
 
-  # create TEMP-CHAIN rules from ${__CONFIG_DIR}/${__CONFIG_FILE} file:
-  cat ${__CONFIG_DIR}/${__CONFIG_FILE} \
-    | envsubst \
-    | egrep -v "^#" \
-    | egrep -v "^[ ]*$" \
-    | awk -F '-A [^ ]* ' '{print $2}' \
-    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'  \
-    | xargs -L 1 $IPTABLES -A TEMP-CHAIN
+  # create TEMP-CHAIN iptables chain from rules found on the config file ${__CONFIG_DIR}/${__CONFIG_FILE}:
+  # will ignore comment lines
+  __INPUT_LINE_NUMBER=0
+  __SUCCESS=true
+  while read LINE; do
+    __INPUT_LINE_NUMBER=$(expr $__INPUT_LINE_NUMBER + 1)
+    CMD=$(echo $LINE | egrep -v "^[ ]*#" | egrep -v "^[ ]*$" | awk -F '-A [^ ]* ' '{print $2}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+#    CMD=$(echo $LINE | egrep -v "^[ ]*#" | egrep -v "^[ ]*$" | sed 's_^\-\([ANI]\) [^ ]\{1,\}_-\1 TEMP-CHAIN_' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | egrep -v '^-N')
+#    echo CMD="_${CMD}_"
+    [ "$CMD" == "" ] || echo "$CMD" | xargs $IPTABLES -A TEMP-CHAIN || __SUCCESS=false
+#    [ "$CMD" == "" ] || echo "$CMD" | xargs $IPTABLES || __SUCCESS=false
+    [ "$__SUCCESS" != "true" ] \
+      && echo "$0: ${FUNCNAME[0]}: ERROR on input file ${__CONFIG_DIR}/${__CONFIG_FILE} line number $__INPUT_LINE_NUMBER: $LINE" \
+      && $IPTABLES -F TEMP-CHAIN && $IPTABLES -X TEMP-CHAIN \
+      && return 1
+  done < "${__CONFIG_DIR}/${__CONFIG_FILE}"
+
   # export TEMP-CHAIN chain to ${__CONFIG_DIR}/${__CONFIG_FILE}.resolved file
   $IPTABLES -S TEMP-CHAIN | sed "s/TEMP-CHAIN/${__CHAIN}/g" > "${__TMP}/${__CONFIG_FILE}.resolved"
-
-  # Plausibility check:
-  NUMBER_OF_CONFIG_LINES_UPDATED=$(cat "${__TMP}/${__CONFIG_FILE}.resolved" | grep -c '\-j')
-  [ "$NUMBER_OF_CONFIG_LINES" != "$NUMBER_OF_CONFIG_LINES_UPDATED" ] \
-    && echo "$0: ${FUNCNAME[0]}: ERROR: Only $NUMBER_OF_CONFIG_LINES_UPDATED of all config lines ($NUMBER_OF_CONFIG_LINES) were successful. Therefore the chain $__CHAIN will not be updated at all. Returning..." \
-    && echo "config file:" \
-    && cat "${__CONFIG_DIR}/${__CONFIG_FILE}" \
-    && echo "result:" \
-    && cat "${__TMP}/${__CONFIG_FILE}.resolved" \
-    && return 1
 
   # save current ${__CHAIN} rules to a file, so it can be compared to the updated version
   $IPTABLES -S ${__CHAIN} > "${__TMP}/${__CHAIN}.save";
@@ -240,7 +239,9 @@ update_iptables_chain() {
   if ! diff "${__TMP}/${__CHAIN}.save" "${__TMP}/${__CONFIG_FILE}.resolved" >/dev/null; then
     # files are different; therefore the chain must be replaced by the resolved version of the configured chain
     $IPTABLES -F ${__CHAIN} \
-      && cat "${__TMP}/${__CONFIG_FILE}.resolved" | xargs -L 1 $IPTABLES
+      && while read LINE; do
+           echo "$LINE" | xargs $IPTABLES
+         done <"${__TMP}/${__CONFIG_FILE}.resolved"
       echo "$0: ${FUNCNAME[0]}: iptables chain ${__CHAIN} updated"
       [ "$DEBUG" == "true" ] && $IPTABLES -S ${__CHAIN}
   else
@@ -253,6 +254,46 @@ update_iptables_chain() {
   # cleaning
   $IPTABLES -F TEMP-CHAIN; $IPTABLES -X TEMP-CHAIN
 }
+
+test_update_iptables_chain_and_exit() {
+  # manual test of update_iptables_chain()
+  definitions
+  
+  create_iptables_chains GGG
+  
+  cat <<EOF > .7_create_iptables_entries/GGG.config
+# example comment and then example with -N
+-N CUSTOM--ACCEPT
+
+# example append rule with stahic network:
+#-A CUSTOM--ACCEPT -j ACCEPT -s khfk127.0.0.0/8 -m comment --comment "LOCAL_IP_NETWORK"
+-A CUSTOM--ACCEPT -j ACCEPT -s 127.0.0.0/8 -m comment --comment "LOCAL IP NETWORK"
+EOF
+
+  [ "$1" == fail ] && echo -A CUSTOM--ACCEPT -j ACCEPT -s khfk127.0.0.0/8 -m comment --comment "LOCAL_IP_NETWORK" >> .7_create_iptables_entries/GGG.config
+  
+  update_iptables_chains GGG
+  
+  $IPTABLES -S GGG
+  rm .7_create_iptables_entries/GGG.config
+}
+
+test_suite_update_iptables_chain_and_exit() {
+  # manual test of update_iptables_chain()
+  definitions
+  $IPTABLES -F GGG; $IPTABLES -X GGG
+  echo "successful test: <----------------"
+  echo "expected: one line starting with -N and one line starting with -A"
+  test_update_iptables_chain_and_exit
+  echo "failed test: <----------------"
+  echo "expected: still one line starting with -N and one line starting with -A"
+  test_update_iptables_chain_and_exit fail
+  echo "exiting ... <----------------"
+  exit 0
+}
+
+# test_suite_update_iptables_chain_and_exit
+
 
 numberOfDuplicateLines(){
  sudo iptables-save > /tmp/iptables-save \
