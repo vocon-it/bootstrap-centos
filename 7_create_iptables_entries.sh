@@ -294,7 +294,6 @@ test_suite_update_iptables_chain_and_exit() {
 
 # test_suite_update_iptables_chain_and_exit
 
-
 numberOfDuplicateLines(){
  sudo iptables-save > /tmp/iptables-save \
    && cat /tmp/iptables-save \
@@ -322,13 +321,23 @@ remove_duplicate_entries_from_iptables() {
 
 }
 
+my_local_ipv4_addresses() {
+  __IPV4_ADDRESSES=
+  for LOCAL_IP in $(hostname -I); do
+    if echo $LOCAL_IP | grep -q "^[1-9][0-9]\{0,2\}\."; then
+      # $LOCAL_IP is an IPv4 address and will be added, if not already present:
+      __IPV4_ADDRESSES="$__IPV4_ADDRESSES $LOCAL_IP"
+    fi
+  done
+  echo $__IPV4_ADDRESSES
+  unset __IPV4_ADDRESSES
+}
+
 #-----------------
-# manual test of update_iptables_chain()
-#create_iptables_chains CUSTOM-FORWARD-HEAD
-#update_iptables_chain CUSTOM-FORWARD-HEAD
+# manual test of my_local_ipv4_addresses()
+#my_local_ipv4_addresses
 #exit 0
 #-----------------
-
 
 ####################
 #      MAIN        #
