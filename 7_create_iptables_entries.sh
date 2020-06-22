@@ -191,6 +191,20 @@ update_iptables_chain() {
     echo "       file with name <chain>.config must exist"
   }
 
+  copy_chain() {
+    __SOURCE_CHAIN=$1
+    __TARGET_CHAIN=$2
+    # export __SOURCE_CHAIN to temp file:
+    $IPTABLES -S $__SOURCE_CHAIN | sed "s/$__SOURCE_CHAIN/$__TARGET_CHAIN/g" > "/tmp/$__SOURCE_CHAIN.save"
+
+    $IPTABLES -F $__TARGET_CHAIN \
+      && while read LINE; do
+           echo "$LINE" | xargs $IPTABLES
+         done <"/tmp/$__SOURCE_CHAIN.save"
+      echo "$0: ${FUNCNAME[1]}: iptables chain ${__TARGET_CHAIN} updated"
+      [ "$DEBUG" == "true" ] && $IPTABLES -S ${__TARGET_CHAIN}
+  }
+
   # Definition of internal variables:
   IPTABLES=${IPTABLES:=/usr/sbin/iptables}
   __CHAIN=$1
@@ -255,7 +269,7 @@ update_iptables_chain() {
   $IPTABLES -F TEMP-CHAIN; $IPTABLES -X TEMP-CHAIN
 }
 
-test_update_iptables_chain_and_exit() {
+test_update_iptables_chain() {
   # manual test of update_iptables_chain()
   definitions
   
@@ -278,21 +292,24 @@ EOF
   rm .7_create_iptables_entries/GGG.config
 }
 
-test_suite_update_iptables_chain_and_exit() {
+test_suite_update_iptables_chain() {
   # manual test of update_iptables_chain()
   definitions
-  $IPTABLES -F GGG; $IPTABLES -X GGG
+  #$IPTABLES -F GGG; $IPTABLES -X GGG
   echo "successful test: <----------------"
   echo "expected: one line starting with -N and one line starting with -A"
-  test_update_iptables_chain_and_exit
+  test_update_iptables_chain
+  echo "second successful test: <----------------"
+  echo "expected: one line starting with -N and one line starting with -A"
+  test_update_iptables_chain
   echo "failed test: <----------------"
   echo "expected: still one line starting with -N and one line starting with -A"
-  test_update_iptables_chain_and_exit fail
+  test_update_iptables_chain fail
   echo "exiting ... <----------------"
-  exit 0
 }
 
-# test_suite_update_iptables_chain_and_exit
+# test_suite_update_iptables_chain
+# exit 0
 
 numberOfDuplicateLines(){
  sudo iptables-save > /tmp/iptables-save \
