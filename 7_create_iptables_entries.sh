@@ -209,6 +209,7 @@ update_iptables_chain() {
 
       # filter iptables command:
       CMD=$(echo $LINE \
+              | sed "s/^[ ]*\(-[A-Z]\)[ ]\{1,\}[^ ]\{1,\}[ ]\{1,\}/\1 ${__TARGET_CHAIN} /" \
               | egrep -v "^[ ]*#" \
               | egrep -v "^[ ]*-N" \
               | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
@@ -315,6 +316,7 @@ update_iptables_chain() {
   # create TEMP-CHAIN iptables chain from rules found on the config file ${__CONFIG_DIR}/${__CONFIG_FILE}:
   # will ignore comment lines
   import_chain "${__CONFIG_DIR}/${__CONFIG_FILE}" TEMP-CHAIN
+#  import_chain_2 "${__CONFIG_DIR}/${__CONFIG_FILE}" TEMP-CHAIN
 #  __INPUT_LINE_NUMBER=0
 #  __SUCCESS=true
 #  while read LINE; do
