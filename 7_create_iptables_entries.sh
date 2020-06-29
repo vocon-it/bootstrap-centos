@@ -190,6 +190,20 @@ update_iptables_chain() {
     echo "usage: $0: ${FUNCNAME[1]} <chain>"
     echo "       file with name <chain>.config must exist"
   }
+  
+  import_chain_2() {
+    __IMPORT_FILE=$1
+    __TARGET_CHAIN=$2
+
+    echo "\${__IMPORT_FILE}=${__IMPORT_FILE}"
+    echo "/tmp/\$__SOURCE_CHAIN.save=/tmp/$__SOURCE_CHAIN.save"
+
+      $IPTABLES -F $__TARGET_CHAIN \
+      && while read LINE; do
+           echo "$LINE" | xargs $IPTABLES
+         done <"${__IMPORT_FILE}"
+      echo "$0: ${FUNCNAME[1]}: iptables chain ${__TARGET_CHAIN} updated"
+  }
 
   import_chain() {
     __IMPORT_FILE=$1
@@ -219,7 +233,7 @@ update_iptables_chain() {
       [ "$__LINE_SUCCESS" != "true" ] \
              && echo "$0: ${FUNCNAME[0]}: ERROR on input file ${__IMPORT_FILE} line number $__INPUT_LINE_NUMBER: $LINE" \
              && __OVERALL_SUCCESS=false
-    done < "${__IMPORT_FILE}"
+    done <"${__IMPORT_FILE}"
     
     [ "${__TARGET_CHAIN}" == "CUSTOM_DROP" ] && DEBUG=true
     [ "$DEBUG" == "true" ] \
@@ -238,7 +252,9 @@ update_iptables_chain() {
     $IPTABLES -S $__SOURCE_CHAIN | sed "s/$__SOURCE_CHAIN/$__TARGET_CHAIN/g" > "/tmp/$__SOURCE_CHAIN.save"
     cat "/tmp/$__SOURCE_CHAIN.save"
 
-    import_chain "/tmp/$__SOURCE_CHAIN.save" "${__TARGET_CHAIN}"
+#    import_chain "/tmp/$__SOURCE_CHAIN.save" "${__TARGET_CHAIN}"
+    import_chain_2 "/tmp/$__SOURCE_CHAIN.save" "${__TARGET_CHAIN}"
+
 #    # apply temp file to __TARGET_CHAIN:
 #    $IPTABLES -F $__TARGET_CHAIN \
 #      && while read LINE; do
