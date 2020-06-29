@@ -234,14 +234,9 @@ update_iptables_chain() {
   while read LINE; do
     __INPUT_LINE_NUMBER=$(expr $__INPUT_LINE_NUMBER + 1)
     CMD=$(echo $LINE | egrep -v "^[ ]*#" | egrep -v "^[ ]*$" | awk -F '-A [^ ]* ' '{print $2}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-#    CMD=$(echo $LINE | egrep -v "^[ ]*#" | egrep -v "^[ ]*$" | sed 's_^\-\([ANI]\) [^ ]\{1,\}_-\1 TEMP-CHAIN_' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | egrep -v '^-N')
-#    echo CMD="_${CMD}_"
     [ "$CMD" == "" ] || echo "$CMD" | xargs $IPTABLES -A TEMP-CHAIN || __SUCCESS=false
-#    [ "$CMD" == "" ] || echo "$CMD" | xargs $IPTABLES || __SUCCESS=false
     [ "$__SUCCESS" != "true" ] \
-      && echo "$0: ${FUNCNAME[0]}: ERROR on input file ${__CONFIG_DIR}/${__CONFIG_FILE} line number $__INPUT_LINE_NUMBER: $LINE" \
-      && $IPTABLES -F TEMP-CHAIN && $IPTABLES -X TEMP-CHAIN \
-      && return 1
+      && echo "$0: ${FUNCNAME[0]}: ERROR on input file ${__CONFIG_DIR}/${__CONFIG_FILE} line number $__INPUT_LINE_NUMBER: $LINE"
   done < "${__CONFIG_DIR}/${__CONFIG_FILE}"
 
   # export TEMP-CHAIN chain to ${__CONFIG_DIR}/${__CONFIG_FILE}.resolved file
