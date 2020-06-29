@@ -213,11 +213,22 @@ update_iptables_chain() {
               | egrep -v "^[ ]*-N" \
               | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
               | egrep -v "^[ ]*$" )
+#              | sed "s/$__SOURCE_CHAIN/$__TARGET_CHAIN/g" \
       echo "CMD=$CMD"
-      [ "$CMD" != "" ] \
-        && echo "$CMD" | xargs $IPTABLES
+      if [ "$CMD" != "" ]; then
+        echo "$CMD" | xargs $IPTABLES \
+          || __LINE_SUCCESS=false
+      fi
+      [ "$__LINE_SUCCESS" != "true" ] \
+             && echo "$0: ${FUNCNAME[0]}: ERROR on input file ${__IMPORT_FILE} line number $__INPUT_LINE_NUMBER: $LINE" \
+             && __OVERALL_SUCCESS=false
     done <"${__IMPORT_FILE}"
-    echo "$0: ${FUNCNAME[1]}: iptables chain ${__TARGET_CHAIN} updated"
+    
+    [ "$DEBUG" == "true" ] \
+      && echo "$0: ${FUNCNAME[1]}: iptables chain ${__TARGET_CHAIN} updated" \
+      && $IPTABLES -S ${__TARGET_CHAIN}
+
+    [ "$__OVERALL_SUCCESS" == "true" ] && return 0 || return 1
   }
 
   import_chain() {
