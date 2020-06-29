@@ -195,9 +195,6 @@ update_iptables_chain() {
     __IMPORT_FILE=$1
     __TARGET_CHAIN=$2
 
-    echo "\${__IMPORT_FILE}=${__IMPORT_FILE}"
-    echo "/tmp/\$__SOURCE_CHAIN.save=/tmp/$__SOURCE_CHAIN.save"
-
     $IPTABLES -N $__TARGET_CHAIN >/dev/null
     $IPTABLES -F $__TARGET_CHAIN
 
@@ -214,8 +211,6 @@ update_iptables_chain() {
               | egrep -v "^[ ]*-N" \
               | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
               | egrep -v "^[ ]*$" )
-#              | sed "s/$__SOURCE_CHAIN/$__TARGET_CHAIN/g" \
-      echo "CMD=$CMD"
       if [ "$CMD" != "" ]; then
         echo "$CMD" | xargs $IPTABLES \
           || __LINE_SUCCESS=false
@@ -315,8 +310,8 @@ update_iptables_chain() {
 
   # create TEMP-CHAIN iptables chain from rules found on the config file ${__CONFIG_DIR}/${__CONFIG_FILE}:
   # will ignore comment lines
-#  import_chain_2 "${__CONFIG_DIR}/${__CONFIG_FILE}" TEMP-CHAIN
-  import_chain "${__CONFIG_DIR}/${__CONFIG_FILE}" TEMP-CHAIN
+  import_chain_2 "${__CONFIG_DIR}/${__CONFIG_FILE}" TEMP-CHAIN
+#  import_chain "${__CONFIG_DIR}/${__CONFIG_FILE}" TEMP-CHAIN
 #  __INPUT_LINE_NUMBER=0
 #  __SUCCESS=true
 #  while read LINE; do
