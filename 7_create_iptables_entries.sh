@@ -191,18 +191,61 @@ update_iptables_chain() {
     echo "       file with name <chain>.config must exist"
   }
 
+  import_chain() {
+    __IMPORT_FILE=$1
+    __TARGET_CHAIN=$2
+
+    $IPTABLES -N $__TARGET_CHAIN >/dev/null
+    $IPTABLES -F $__TARGET_CHAIN
+
+    __INPUT_LINE_NUMBER=0
+    __OVERALL_SUCCESS=true
+    while read LINE; do
+      __LINE_SUCCESS=true
+      __INPUT_LINE_NUMBER=$(expr $__INPUT_LINE_NUMBER + 1)
+
+      # filter iptables command:
+      CMD=$(echo $LINE \
+              | egrep -v "^[ ]*#" \
+              | egrep -v "^[ ]*$" \
+              | egrep -v "^[ ]*-N" \
+              | awk -F '-A [^ ]* ' '{print $2}' \
+              | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+      [ "$CMD" == "" ] \
+              || echo "$CMD" \
+              | xargs $IPTABLES -A TEMP-CHAIN \
+              && (echo success) \
+              || __LINE_SUCCESS=false
+      [ "$__LINE_SUCCESS" != "true" ] \
+             && echo "$0: ${FUNCNAME[0]}: ERROR on input file ${__IMPORT_FILE} line number $__INPUT_LINE_NUMBER: $LINE" \
+             && __OVERALL_SUCCESS=false
+    done < "${__IMPORT_FILE}"
+    
+    [ "${__TARGET_CHAIN}" == "CUSTOM_DROP" ] && DEBUG=true
+    [ "$DEBUG" == "true" ] \
+      && echo "$0: ${FUNCNAME[1]}: iptables chain ${__TARGET_CHAIN} updated" \
+      && $IPTABLES -S ${__TARGET_CHAIN}
+    [ "${__TARGET_CHAIN}" == "CUSTOM_DROP" ] && DEBUG=false
+
+    [ "$__OVERALL_SUCCESS" == "true" ] && return 0 || return 1
+  }
+
   copy_chain() {
     __SOURCE_CHAIN=$1
     __TARGET_CHAIN=$2
+
     # export __SOURCE_CHAIN to temp file:
     $IPTABLES -S $__SOURCE_CHAIN | sed "s/$__SOURCE_CHAIN/$__TARGET_CHAIN/g" > "/tmp/$__SOURCE_CHAIN.save"
+    cat "/tmp/$__SOURCE_CHAIN.save"
 
-    $IPTABLES -F $__TARGET_CHAIN \
-      && while read LINE; do
-           echo "$LINE" | xargs $IPTABLES
-         done <"/tmp/$__SOURCE_CHAIN.save"
-      echo "$0: ${FUNCNAME[1]}: iptables chain ${__TARGET_CHAIN} updated"
-      [ "$DEBUG" == "true" ] && $IPTABLES -S ${__TARGET_CHAIN}
+    import_chain "/tmp/$__SOURCE_CHAIN.save" "${__TARGET_CHAIN}"
+#    # apply temp file to __TARGET_CHAIN:
+#    $IPTABLES -F $__TARGET_CHAIN \
+#      && while read LINE; do
+#           echo "$LINE" | xargs $IPTABLES
+#         done <"/tmp/$__SOURCE_CHAIN.save"
+#      echo "$0: ${FUNCNAME[1]}: iptables chain ${__TARGET_CHAIN} updated"
+#      [ "$DEBUG" == "true" ] && $IPTABLES -S ${__TARGET_CHAIN}
   }
 
   # Definition of internal variables:
@@ -229,20 +272,16 @@ update_iptables_chain() {
 
   # create TEMP-CHAIN iptables chain from rules found on the config file ${__CONFIG_DIR}/${__CONFIG_FILE}:
   # will ignore comment lines
-  __INPUT_LINE_NUMBER=0
-  __SUCCESS=true
-  while read LINE; do
-    __INPUT_LINE_NUMBER=$(expr $__INPUT_LINE_NUMBER + 1)
-    CMD=$(echo $LINE | egrep -v "^[ ]*#" | egrep -v "^[ ]*$" | awk -F '-A [^ ]* ' '{print $2}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-#    CMD=$(echo $LINE | egrep -v "^[ ]*#" | egrep -v "^[ ]*$" | sed 's_^\-\([ANI]\) [^ ]\{1,\}_-\1 TEMP-CHAIN_' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | egrep -v '^-N')
-#    echo CMD="_${CMD}_"
-    [ "$CMD" == "" ] || echo "$CMD" | xargs $IPTABLES -A TEMP-CHAIN || __SUCCESS=false
-#    [ "$CMD" == "" ] || echo "$CMD" | xargs $IPTABLES || __SUCCESS=false
-    [ "$__SUCCESS" != "true" ] \
-      && echo "$0: ${FUNCNAME[0]}: ERROR on input file ${__CONFIG_DIR}/${__CONFIG_FILE} line number $__INPUT_LINE_NUMBER: $LINE" \
-      && $IPTABLES -F TEMP-CHAIN && $IPTABLES -X TEMP-CHAIN \
-      && return 1
-  done < "${__CONFIG_DIR}/${__CONFIG_FILE}"
+  import_chain "${__CONFIG_DIR}/${__CONFIG_FILE}" TEMP-CHAIN
+#  __INPUT_LINE_NUMBER=0
+#  __SUCCESS=true
+#  while read LINE; do
+#    __INPUT_LINE_NUMBER=$(expr $__INPUT_LINE_NUMBER + 1)
+#    CMD=$(echo $LINE | egrep -v "^[ ]*#" | egrep -v "^[ ]*$" | awk -F '-A [^ ]* ' '{print $2}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+#    [ "$CMD" == "" ] || echo "$CMD" | xargs $IPTABLES -A TEMP-CHAIN || __SUCCESS=false
+#    [ "$__SUCCESS" != "true" ] \
+#      && echo "$0: ${FUNCNAME[0]}: ERROR on input file ${__CONFIG_DIR}/${__CONFIG_FILE} line number $__INPUT_LINE_NUMBER: $LINE"
+#  done < "${__CONFIG_DIR}/${__CONFIG_FILE}"
 
   # export TEMP-CHAIN chain to ${__CONFIG_DIR}/${__CONFIG_FILE}.resolved file
   $IPTABLES -S TEMP-CHAIN | sed "s/TEMP-CHAIN/${__CHAIN}/g" > "${__TMP}/${__CONFIG_FILE}.resolved"
@@ -253,10 +292,10 @@ update_iptables_chain() {
   if ! diff "${__TMP}/${__CHAIN}.save" "${__TMP}/${__CONFIG_FILE}.resolved" >/dev/null; then
     # files are different; therefore the chain must be replaced by the resolved version of the configured chain
     $IPTABLES -F ${__CHAIN} \
-      && while read LINE; do
-           echo "$LINE" | xargs $IPTABLES
-         done <"${__TMP}/${__CONFIG_FILE}.resolved"
-      echo "$0: ${FUNCNAME[0]}: iptables chain ${__CHAIN} updated"
+      && echo "xxxxxxxxxxxxxxxx" \
+      && copy_chain TEMP-CHAIN ${__CHAIN} \
+      && echo "$0: ${FUNCNAME[0]}: iptables chain ${__CHAIN} updated" \
+      || echo "$0: ${FUNCNAME[0]}: failed to update chain ${__CHAIN}"
       [ "$DEBUG" == "true" ] && $IPTABLES -S ${__CHAIN}
   else
     [ "$DEBUG" == "true" ] && echo "$0: ${FUNCNAME[0]}: iptables chain $CHAIN and the FQDNs therein have not changed"
