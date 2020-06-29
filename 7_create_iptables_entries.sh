@@ -198,11 +198,26 @@ update_iptables_chain() {
     echo "\${__IMPORT_FILE}=${__IMPORT_FILE}"
     echo "/tmp/\$__SOURCE_CHAIN.save=/tmp/$__SOURCE_CHAIN.save"
 
-      $IPTABLES -F $__TARGET_CHAIN \
-      && while read LINE; do
-           echo "$LINE" | xargs $IPTABLES
-         done <"${__IMPORT_FILE}"
-      echo "$0: ${FUNCNAME[1]}: iptables chain ${__TARGET_CHAIN} updated"
+    $IPTABLES -N $__TARGET_CHAIN >/dev/null
+    $IPTABLES -F $__TARGET_CHAIN
+
+    __INPUT_LINE_NUMBER=0
+    __OVERALL_SUCCESS=true
+    while read LINE; do
+      __LINE_SUCCESS=true
+      __INPUT_LINE_NUMBER=$(expr $__INPUT_LINE_NUMBER + 1)
+
+      # filter iptables command:
+      CMD=$(echo $LINE \
+              | egrep -v "^[ ]*#" \
+              | egrep -v "^[ ]*-N" \
+              | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+              | egrep -v "^[ ]*$" )
+      echo "CMD=$CMD"
+      [ "$CMD" != "" ] \
+        && echo "$CMD" | xargs $IPTABLES
+    done <"${__IMPORT_FILE}"
+    echo "$0: ${FUNCNAME[1]}: iptables chain ${__TARGET_CHAIN} updated"
   }
 
   import_chain() {
