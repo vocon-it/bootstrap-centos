@@ -254,7 +254,7 @@ update_iptables_chain() {
               | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
       [ "$CMD" == "" ] \
               || echo "$CMD" \
-              | xargs $IPTABLES -A TEMP-CHAIN \
+              | xargs $IPTABLES -A ${__TARGET_CHAIN} \
               && (echo success) \
               || __LINE_SUCCESS=false
       [ "$__LINE_SUCCESS" != "true" ] \
@@ -315,8 +315,8 @@ update_iptables_chain() {
 
   # create TEMP-CHAIN iptables chain from rules found on the config file ${__CONFIG_DIR}/${__CONFIG_FILE}:
   # will ignore comment lines
-  import_chain "${__CONFIG_DIR}/${__CONFIG_FILE}" TEMP-CHAIN
 #  import_chain_2 "${__CONFIG_DIR}/${__CONFIG_FILE}" TEMP-CHAIN
+  import_chain "${__CONFIG_DIR}/${__CONFIG_FILE}" TEMP-CHAIN
 #  __INPUT_LINE_NUMBER=0
 #  __SUCCESS=true
 #  while read LINE; do
