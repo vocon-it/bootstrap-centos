@@ -12,7 +12,8 @@ source 1_setup_user.sh
 source 3_configure_git.sh
 
 # Install Docker v18.06.1.ce-3
-source 4_install_docker.sh
+# --> moved to install install-kubernetes-via-kubadm-on-centos
+# source 4_install_docker.sh
 
 # Install JQ and YQ
 source 5_install_jq_and_yq.sh
