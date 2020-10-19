@@ -1,6 +1,6 @@
 
 #write out current crontab
-crontab -l > mycron
+crontab -l > mycron || true
 
 PWD=$(cd $(dirname $0); pwd) 
 

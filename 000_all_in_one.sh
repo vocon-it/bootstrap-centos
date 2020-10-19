@@ -21,17 +21,15 @@ source 5_install_jq_and_yq.sh
 source 6_source_set_aliases.sh
 
 # Create iptables rules for a secure connection
-source 7_create_iptables_entries.sh
+# does not support to be sourced, since $0 is used to find the folder .7_create_iptables_entries
+bash 7_create_iptables_entries.sh
 
 # Set up cronjobs for updating iptables rules
-#source 8_set_cronjobs.sh
+source 8_set_cronjobs.sh
 
 # Hardening the machine like no root and password login
-#source 9_hardening.sh
+source 9_hardening.sh
 
 # Disable Ipv6 for better connection with git
-#source 10_disabling_ipv6.sh
-
-# Increase Watchfile Limit (needed e.g. for angular in watch mode)
-bash 11_increasing_watchfile_limit.sh
+source 10_disabling_ipv6.sh
 

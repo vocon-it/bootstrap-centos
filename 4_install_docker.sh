@@ -1,7 +1,7 @@
 
 if docker version; then
   echo "docker is installed already. Nothing to do"
-fi
+else
   
   # install docker
   yum check-update || true
@@ -13,13 +13,13 @@ fi
   sudo echo nothing 2>/dev/null 1>/dev/null || alias sudo='$@'
   
   sudo tee /etc/yum.repos.d/docker.repo <<-'EOF' 
-  [docker-ce-edge]
-  name=Docker CE Edge - $basearch
-  baseurl=https://download.docker.com/linux/centos/7/$basearch/edge
-  enabled=1
-  gpgcheck=1
-  gpgkey=https://download.docker.com/linux/centos/gpg
-  EOF
+[docker-ce-edge]
+name=Docker CE Edge - $basearch
+baseurl=https://download.docker.com/linux/centos/7/$basearch/edge
+enabled=1
+gpgcheck=1
+gpgkey=https://download.docker.com/linux/centos/gpg
+EOF
   
   sudo yum install -y docker-ce-18.06.1.ce-3.el7.x86_64 
   
