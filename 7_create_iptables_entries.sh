@@ -378,21 +378,16 @@ my_local_ipv4_addresses() {
 }
 
 add_local_ip_addresses() {
-  #__CHAIN=$1
-  #__JUMP=$2
   __CONFIG_DIR=${CONFIG_DIR:=$(echo ${0%.*} | sed 's_\([^/]*$\)_.\1_')}
-  #__CONFIG_FILE=${__CHAIN}.config
   __LOCAL_TEMP_CONFIG="${__CONFIG_DIR}/CUSTOM-LOCAL.config.temp"
   __LOCAL_CONFIG="${__CONFIG_DIR}/CUSTOM-LOCAL.config"
 
-  #if [ "${__JUMP}" == "" ]; then return 1; fi
   echo "-N CUSTOM-LOCAL" > "${__LOCAL_TEMP_CONFIG}"
   for IP in $(my_local_ipv4_addresses); do
     echo "-A CUSTOM-LOCAL -j ACCEPT -s ${IP}/32 -m comment --comment \"LOCAL_IP_NETWORK\"" >> "${__LOCAL_TEMP_CONFIG}"
   done
   cat "${__LOCAL_TEMP_CONFIG}"
   mv "${__LOCAL_TEMP_CONFIG}" "${__LOCAL_CONFIG}"
-  # rm "${__LOCAL_CONFIG}"
 }
 
 #-----------------
@@ -472,8 +467,8 @@ sudo yum list installed | grep -q bind-utils || sudo yum install -y bind-utils
 #############
 # Add INPUT rules
 #############
-create_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL
-update_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL
+create_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL CUSTOM-LOCAL
+update_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL CUSTOM-LOCAL
 insert_rule_at_line INPUT 1 CUSTOM-ACCEPT
 insert_rule_at_line INPUT 2 CUSTOM-LOCAL
 insert_rule_at_line INPUT 3 CUSTOM-DROP
