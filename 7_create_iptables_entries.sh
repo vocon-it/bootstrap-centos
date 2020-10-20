@@ -392,7 +392,7 @@ add_local_ip_addresses() {
   done
   cat "${__LOCAL_TEMP_CONFIG}"
   mv "${__LOCAL_TEMP_CONFIG}" "${__LOCAL_CONFIG}"
-  rm "${__LOCAL_CONFIG}"
+  # rm "${__LOCAL_CONFIG}"
 }
 
 #-----------------
@@ -475,7 +475,8 @@ sudo yum list installed | grep -q bind-utils || sudo yum install -y bind-utils
 create_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL
 update_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL
 insert_rule_at_line INPUT 1 CUSTOM-ACCEPT
-insert_rule_at_line INPUT 2 CUSTOM-DROP
+insert_rule_at_line INPUT 2 CUSTOM-LOCAL
+insert_rule_at_line INPUT 3 CUSTOM-DROP
 insert_rule_at_line INPUT 0 CUSTOM-TAIL
 
 #############
