@@ -386,13 +386,6 @@ add_local_ip_addresses() {
     echo "LOCAL_IP=${IP}"
   done
 }
-#############
-# Add local IP addresses to CUSTOM-ACCEPT.config, if not present
-#############
-LOCAL_IP_ADDRESSES=$(my_local_ipv4_addresses)
-for IP in $(my_local_ipv4_addresses); do
-  cat grep ${IP}
-done
 
 #-----------------
 # manual test of my_local_ipv4_addresses()
@@ -442,7 +435,10 @@ if [ "$ENABLED" == "false" ]; then
   exit 0
 fi
 
-add_local_ip_addresses MYCHAIN MYJUMP
+#############
+# Add local IP addresses
+#############
+#add_local_ip_addresses MYCHAIN MYJUMP
 
 #############
 # Add current SSH IP address to list of allowed IP addresses (does not work in the moment, since we do not allow for adding config lines programmatically any more)
@@ -490,4 +486,6 @@ modify_iptable_chain_policy ACCEPT INPUT
 # remove duplicate entries form iptables
 #############
 remove_duplicate_entries_from_iptables
+
+echo done
 
