@@ -378,13 +378,21 @@ my_local_ipv4_addresses() {
 }
 
 add_local_ip_addresses() {
-  __CHAIN=$1
-  __JUMP=$2
-  if [ "${__JUMP}" == "" ]; then return 1; fi
+  #__CHAIN=$1
+  #__JUMP=$2
+  __CONFIG_DIR=${CONFIG_DIR:=$(echo ${0%.*} | sed 's_\([^/]*$\)_.\1_')}
+  #__CONFIG_FILE=${__CHAIN}.config
+  __LOCAL_TEMP_CONFIG="${__CONFIG_DIR}/CUSTOM-LOCAL.config.temp"
+  __LOCAL_CONFIG="${__CONFIG_DIR}/CUSTOM-LOCAL.config"
 
+  #if [ "${__JUMP}" == "" ]; then return 1; fi
+  echo "-N CUSTOM-LOCAL" > "${__LOCAL_TEMP_CONFIG}"
   for IP in $(my_local_ipv4_addresses); do
-    echo "LOCAL_IP=${IP}"
+    echo "-A CUSTOM-LOCAL -j ACCEPT -s ${IP}/32 -m comment --comment \"LOCAL_IP_NETWORK\"" >> "${__LOCAL_TEMP_CONFIG}"
   done
+  cat "${__LOCAL_TEMP_CONFIG}"
+  mv "${__LOCAL_TEMP_CONFIG}" "${__LOCAL_CONFIG}"
+  rm "${__LOCAL_CONFIG}"
 }
 
 #-----------------
@@ -438,7 +446,7 @@ fi
 #############
 # Add local IP addresses
 #############
-#add_local_ip_addresses MYCHAIN MYJUMP
+add_local_ip_addresses
 
 #############
 # Add current SSH IP address to list of allowed IP addresses (does not work in the moment, since we do not allow for adding config lines programmatically any more)
@@ -488,4 +496,3 @@ modify_iptable_chain_policy ACCEPT INPUT
 remove_duplicate_entries_from_iptables
 
 echo done
-
