@@ -377,6 +377,23 @@ my_local_ipv4_addresses() {
   unset __IPV4_ADDRESSES
 }
 
+add_local_ip_addresses() {
+  __CHAIN=$1
+  __JUMP=$2
+  if [ "${__JUMP}" == "" ]; then return 1; fi
+
+  for IP in $(my_local_ipv4_addresses); do
+    echo "LOCAL_IP=${IP}"
+  done
+}
+#############
+# Add local IP addresses to CUSTOM-ACCEPT.config, if not present
+#############
+LOCAL_IP_ADDRESSES=$(my_local_ipv4_addresses)
+for IP in $(my_local_ipv4_addresses); do
+  cat grep ${IP}
+done
+
 #-----------------
 # manual test of my_local_ipv4_addresses()
 #my_local_ipv4_addresses
@@ -424,6 +441,8 @@ if [ "$ENABLED" == "false" ]; then
   echo "Firewall updates are disabled"
   exit 0
 fi
+
+add_local_ip_addresses MYCHAIN MYJUMP
 
 #############
 # Add current SSH IP address to list of allowed IP addresses (does not work in the moment, since we do not allow for adding config lines programmatically any more)

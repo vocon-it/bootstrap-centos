@@ -19,7 +19,8 @@ source 3_configure_git.sh
 source 5_install_jq_and_yq.sh
 
 # Set up aliases
-source 6_source_set_aliases.sh
+#
+# source 6_source_set_aliases.sh
 
 # Create iptables rules for a secure connection
 # does not support to be sourced, since $0 is used to find the folder .7_create_iptables_entries
