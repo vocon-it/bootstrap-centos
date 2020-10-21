@@ -1,4 +1,4 @@
 *.swp
 *.save
 *.resolved
-CUSTOM_LOCAL*
+.7_create_iptables_entries/CUSTOM-LOCAL*.config
