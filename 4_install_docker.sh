@@ -1,4 +1,13 @@
 
+# Obsolete
+# Latest version can be found on ../install-kubernetes-via-kubadm-on-centos/1_install_docker.sh
+#
+
+echo "$0 is obsolete. Use install-kubernetes-via-kubadm-on-centos/1_install_docker.sh instead"
+exit 1
+
+### obsolete below this line ###
+
 if docker version; then
   echo "docker is installed already. Nothing to do"
 else
