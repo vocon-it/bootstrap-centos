@@ -5,8 +5,8 @@ set -e
 # Setup centos User
 source 1_setup_user.sh
 
-# Update Git Version
-# source 2_update-git-centos.sh
+# Update Git Version (only successfully tested for CentOS 7; CentOS 8 had problems with the wandisco repo
+bash 2_update-git-centos.sh || true
 
 # Configure Git credentials
 source 3_configure_git.sh
