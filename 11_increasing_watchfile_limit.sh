@@ -8,12 +8,11 @@
 # Exit on error:
 set -e
 
-if ! sudo cat /etc/sysctl.conf | grep -q 'max_user_watches' ; then
+sudo cat /etc/sysctl.conf | grep -q 'max_user_watches' && echo "max_user_watches already increased. Nothing to do." && exit 0
 
-  cat << EOF | sudo tee -a /etc/sysctl.conf
+cat << EOF | sudo tee -a /etc/sysctl.conf
 fs.inotify.max_user_watches=524288
 EOF
 
-  sudo sysctl -p
+sudo sysctl -p
 
-fi
