@@ -31,8 +31,11 @@ bash 7_create_iptables_entries.sh
 bash 8_set_cronjobs.sh
 
 # Hardening the machine like no root and password login
-source 9_hardening.sh
+bash 9_hardening.sh
 
 # Disable Ipv6 for better connection with git
-source 10_disabling_ipv6.sh
+bash 10_disabling_ipv6.sh
+
+# Increase Watchfile Limit (needed e.g. for angular in watch mode)
+bash 11_increasing_watchfile_limit.sh
 
