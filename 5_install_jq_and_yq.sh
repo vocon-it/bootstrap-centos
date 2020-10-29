@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Exit on error:
+set -e
+
 if jq --version ; then
   echo "jq is already installed. nothing to do."
 else 

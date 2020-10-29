@@ -5,12 +5,15 @@
 #   title: IntelliJDesktop ng serve: Error: ENOSPC: System limit for number of file watchers reached
 #
 
+# Exit on error:
+set -e
+
 if ! sudo cat /etc/sysctl.conf | grep -q 'max_user_watches' ; then
 
-cat << EOF | sudo tee -a /etc/sysctl.conf
+  cat << EOF | sudo tee -a /etc/sysctl.conf
 fs.inotify.max_user_watches=524288
 EOF
 
-sudo sysctl -p
+  sudo sysctl -p
 
 fi

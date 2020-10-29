@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Exit on error:
+set -e
+
 CREATEUSER=${CREATEUSER:=centos}
 if [ $# -ne 0 ]; then
         echo "usage: [CREATEUSER=myuser] $0"

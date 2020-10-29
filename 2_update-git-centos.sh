@@ -6,6 +6,9 @@
 # - binary from wandisco repo (opensource.wandisco.com)
 # - from source (www.kernel.org/pub/software/scm/git)
 
+# Exit on error:
+set -e
+
 CENTOS_MAIN_VERSION=$(cat /etc/centos-release | awk '{print $4}' | awk -F '.' '{print $1}')
 
 URL_IUS=https://repo.ius.io/ius-release-el${CENTOS_MAIN_VERSION}.rpm

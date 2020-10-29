@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Exit on error:
+set -e
+
 if [ "$(cat ~/.hardened)" == "true" ]; then
   echo "System is hardened already. Nothing to do"
 else
