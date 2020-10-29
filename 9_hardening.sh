@@ -3,7 +3,7 @@
 # Exit on error:
 set -e
 
-[ "$(cat ~/.hardened)" == "true" ] && echo "System is hardened already. Nothing to do" && ecit 0
+[ "$(cat /root/.hardened)" == "true" ] && echo "System is hardened already. Nothing to do" && exit 0
 
 read -p 'Be careful! This script will disallow any password login and any root login! Proceed? (no)' answer
 
@@ -38,5 +38,5 @@ if [ "$answer" != "y" -a "$answer" != "yes" ]; then
   systemctl reload sshd
   echo done rolling back
 else
-  echo true > ~/.hardened
+  echo true > /root/.hardened
 fi
