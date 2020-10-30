@@ -1,11 +1,11 @@
 
 
 # functions
-unalias cli 2>/dev/null
+unalias cli 2>/dev/null || true
 cli() {
  docker run -it --rm -w /app -v $(pwd):/app --net=host oveits/angular-cli:1.4.3 $@
 }
-unalias npm 2>/dev/null
+unalias npm 2>/dev/null || true
 npm() {
  if [[ "$@" == "i" ]] || [[ "$@" == "install" ]] ; then
     sudo chown -R $(whoami) .

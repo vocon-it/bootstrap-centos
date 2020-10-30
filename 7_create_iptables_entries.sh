@@ -377,6 +377,19 @@ my_local_ipv4_addresses() {
   unset __IPV4_ADDRESSES
 }
 
+add_local_ip_addresses() {
+  __CONFIG_DIR=${CONFIG_DIR:=$(echo ${0%.*} | sed 's_\([^/]*$\)_.\1_')}
+  __LOCAL_TEMP_CONFIG="${__CONFIG_DIR}/CUSTOM-LOCAL.config.temp"
+  __LOCAL_CONFIG="${__CONFIG_DIR}/CUSTOM-LOCAL.config"
+
+  echo "-N CUSTOM-LOCAL" > "${__LOCAL_TEMP_CONFIG}"
+  for IP in $(my_local_ipv4_addresses); do
+    echo "-A CUSTOM-LOCAL -j ACCEPT -s ${IP}/32 -m comment --comment \"LOCAL_IP_NETWORK\"" >> "${__LOCAL_TEMP_CONFIG}"
+  done
+  cat "${__LOCAL_TEMP_CONFIG}"
+  mv "${__LOCAL_TEMP_CONFIG}" "${__LOCAL_CONFIG}"
+}
+
 #-----------------
 # manual test of my_local_ipv4_addresses()
 #my_local_ipv4_addresses
@@ -426,6 +439,11 @@ if [ "$ENABLED" == "false" ]; then
 fi
 
 #############
+# Add local IP addresses
+#############
+add_local_ip_addresses
+
+#############
 # Add current SSH IP address to list of allowed IP addresses (does not work in the moment, since we do not allow for adding config lines programmatically any more)
 #############
 # TODO: create a function to re-write *.config files
@@ -449,10 +467,11 @@ sudo yum list installed | grep -q bind-utils || sudo yum install -y bind-utils
 #############
 # Add INPUT rules
 #############
-create_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL
-update_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL
+create_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL CUSTOM-LOCAL
+update_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL CUSTOM-LOCAL
 insert_rule_at_line INPUT 1 CUSTOM-ACCEPT
-insert_rule_at_line INPUT 2 CUSTOM-DROP
+insert_rule_at_line INPUT 2 CUSTOM-LOCAL
+insert_rule_at_line INPUT 3 CUSTOM-DROP
 insert_rule_at_line INPUT 0 CUSTOM-TAIL
 
 #############
@@ -472,3 +491,4 @@ modify_iptable_chain_policy ACCEPT INPUT
 #############
 remove_duplicate_entries_from_iptables
 
+echo done

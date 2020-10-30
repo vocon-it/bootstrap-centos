@@ -1,22 +1,27 @@
 #!/usr/bin/env bash
 
+# Exit on error:
+set -e
+
 # Setup centos User
 bash 1_setup_user.sh
 
-# Update Git Version
+# Update Git Version (only successfully tested for CentOS 7; CentOS 8 had problems with the wandisco repo
 bash 2_update-git-centos.sh
 
 # Configure Git credentials
 bash 3_configure_git.sh
 
 # Install Docker v18.06.1.ce-3
-bash 4_install_docker.sh
+# --> moved to install install-kubernetes-via-kubadm-on-centos
+# source 4_install_docker.sh
 
 # Install JQ and YQ
 bash 5_install_jq_and_yq.sh
 
-# Set up aliases
-bash 6_source_set_aliases.sh
+# Set up aliases (optional for CentOS systems for angular development; not needed in most cases)
+#
+# source 6_source_set_angular_aliases.sh
 
 # Create iptables rules for a secure connection
 bash 7_create_iptables_entries.sh

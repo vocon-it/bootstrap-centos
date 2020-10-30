@@ -1,8 +1,13 @@
 #!/bin/sh
 
-read -p 'Be careful! This script will disallow any password login and any root login! Proceed? (no)' answer 
+# Exit on error:
+set -e
 
-[ "$answer" != "y" -a "$answer" != "yes" ] && echo "Aborting..." && exit 0 
+[ "$(cat /root/.hardened)" == "true" ] && echo "System is hardened already. Nothing to do" && exit 0
+
+read -p 'Be careful! This script will disallow any password login and any root login! Proceed? (no)' answer
+
+[ "$answer" != "y" -a "$answer" != "yes" ] && echo "Aborting..." && exit 0
 
 cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
 
@@ -32,4 +37,6 @@ if [ "$answer" != "y" -a "$answer" != "yes" ]; then
   cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
   systemctl reload sshd
   echo done rolling back
+else
+  echo true > /root/.hardened
 fi
