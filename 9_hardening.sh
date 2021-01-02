@@ -14,7 +14,8 @@ cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
 # disallow login with password and disallow SSH root login:
 for SETTING in ChallengeResponseAuthentication PasswordAuthentication PermitRootLogin; do
    cat /etc/ssh/sshd_config | grep -v '^#' | grep $SETTING | grep yes \
-   && sed -i "s/^[ ]*\($SETTING\).*/\1 no/g" /etc/ssh/sshd_config
+     && sed -i "s/^[ ]*\($SETTING\).*/\1 no/g" /etc/ssh/sshd_config \
+     || echo "${SETTING} no" >> /etc/ssh/sshd_config
 
    echo changed to:
    cat /etc/ssh/sshd_config | grep -v '^#' | grep $SETTING
@@ -22,7 +23,8 @@ done
 
 for SETTING in UsePAM; do
    cat /etc/ssh/sshd_config | grep -v '^#' | grep $SETTING | grep no \
-   && sed -i "s/^[ ]*\($SETTING\).*/\1 yes/g" /etc/ssh/sshd_config
+     && sed -i "s/^[ ]*\($SETTING\).*/\1 yes/g" /etc/ssh/sshd_config \
+     || echo "${SETTING} yes" >> /etc/ssh/sshd_config
 
    echo changed to:
    cat /etc/ssh/sshd_config | grep -v '^#' | grep $SETTING
