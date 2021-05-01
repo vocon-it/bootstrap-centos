@@ -382,7 +382,13 @@ add_local_ip_addresses() {
   __LOCAL_TEMP_CONFIG="${__CONFIG_DIR}/CUSTOM-LOCAL.config.temp"
   __LOCAL_CONFIG="${__CONFIG_DIR}/CUSTOM-LOCAL.config"
 
-  echo "-N CUSTOM-LOCAL" > "${__LOCAL_TEMP_CONFIG}"
+  #echo "-N CUSTOM-LOCAL" > "${__LOCAL_TEMP_CONFIG}"
+  cat <<EOF > "${__LOCAL_TEMP_CONFIG}"
+-N CUSTOM-LOCAL
+-A CUSTOM-ACCEPT -j ACCEPT -s 127.0.0.0/8 -m comment --comment "LOCAL_IP_NETWORK"
+-A CUSTOM-ACCEPT -j ACCEPT -s 192.168.0.0/16 -m comment --comment "LOCAL_IP_NETWORK"
+-A CUSTOM-ACCEPT -j ACCEPT -s 10.0.0.0/8 -m comment --comment "LOCAL_IP_NETWORK"
+EOF
   for IP in $(my_local_ipv4_addresses); do
     echo "-A CUSTOM-LOCAL -j ACCEPT -s ${IP}/32 -m comment --comment \"LOCAL_IP_NETWORK\"" >> "${__LOCAL_TEMP_CONFIG}"
   done
@@ -469,8 +475,8 @@ sudo yum list installed | grep -q bind-utils || sudo yum install -y bind-utils
 #############
 create_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL CUSTOM-LOCAL
 update_iptables_chains CUSTOM-ACCEPT CUSTOM-DROP CUSTOM-TAIL CUSTOM-LOCAL
-insert_rule_at_line INPUT 1 CUSTOM-ACCEPT
-insert_rule_at_line INPUT 2 CUSTOM-LOCAL
+insert_rule_at_line INPUT 1 CUSTOM-LOCAL
+insert_rule_at_line INPUT 2 CUSTOM-ACCEPT
 insert_rule_at_line INPUT 3 CUSTOM-DROP
 insert_rule_at_line INPUT 0 CUSTOM-TAIL
 
