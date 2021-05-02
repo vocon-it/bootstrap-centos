@@ -25,4 +25,4 @@ else
 fi
 
 # cleaning
-rm mycron
+[ -w mycron ] && rm mycron

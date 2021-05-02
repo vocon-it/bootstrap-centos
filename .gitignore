@@ -2,3 +2,4 @@
 *.save
 *.resolved
 .idea
+.7_create_iptables_entries/CUSTOM-LOCAL.config
