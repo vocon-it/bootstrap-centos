@@ -38,3 +38,6 @@ bash 10_disabling_ipv6.sh
 # Increase Watchfile Limit (needed e.g. for angular in watch mode)
 bash 11_increasing_watchfile_limit.sh
 
+# Install and enable ntp
+bash 12_install_ntp.sh
+
