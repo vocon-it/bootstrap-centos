@@ -3,6 +3,8 @@
 # Exit on error:
 set -e
 
+# TODO: CAAS-1660: test on Centos 7 and Stream 9
+
 # Setup centos User
 bash 1_setup_user.sh
 
