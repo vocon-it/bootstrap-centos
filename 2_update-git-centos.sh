@@ -1,3 +1,11 @@
+
+# TODO: CAAS-1660: on Stream 9, just install git via
+
+yum install -y git && exit 0
+
+###################################################################
+################### only for Centos 6/7 below this line ###########
+###################################################################
 # 5 Ways to install GIT on CentOS 6/7
 # They are tried one after the other
 # - binary from IUS Repo (repo.ius.io)

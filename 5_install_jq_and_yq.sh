@@ -3,16 +3,21 @@
 # Exit on error:
 set -e
 
-jq --version && echo "jq is already installed. nothing to do." && exit 0
+# repo for Centos 7
+sudo yum install -y epel-release || true
 
-# repo
-yum install -y epel-release
-
-# install jq:
-yum install -y jq
+if jq --version >/dev/null; then
+  echo "jq is already installed. nothing to do."
+else
+  sudo yum install -y jq
+fi
 jq --version
 
-# install yq, i.e. the yaml pendant of jq:
-sudo yum install -y python2-pip-8.1.2-8.el7.noarch || sudo yum install -y python2-pip
-sudo pip install yq
+if yq --version >/dev/null 2>/dev/null; then
+  echo "yq is already installed. nothing to do."
+else
+  sudo yum install -y pip || true
+  sudo pip install yq
+fi
+yq --version
 
