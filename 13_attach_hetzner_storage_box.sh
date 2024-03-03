@@ -1,4 +1,6 @@
 
+sudo yum install -y cifs-utils
+
 HETZNER_STORAGE_USER=u380503
 sudo mkdir -p /mnt/${HETZNER_STORAGE_USER}.your-storagebox.de
 sudo mkdir -p /etc/Hetzner/
