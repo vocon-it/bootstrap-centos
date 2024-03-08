@@ -15,7 +15,7 @@ sudo cat /etc/Hetzner/${HETZNER_STORAGE_USER}.your-storagebox.de.credentials | g
   && exit 1
 
 if ! grep -q ${HETZNER_STORAGE_USER} /etc/fstab; then
-  echo "//${HETZNER_STORAGE_USER}.your-storagebox.de/backup /mnt/${HETZNER_STORAGE_USER}.your-storagebox.de cifs vers=1.0,iocharset=utf8,rw,credentials=/etc/Hetzner/${HETZNER_STORAGE_USER}.your-storagebox.de.credentials,uid=0,gid=1000,file_mode=0660,dir_mode=0770 0 0" \
+  echo "//${HETZNER_STORAGE_USER}.your-storagebox.de/backup /mnt/${HETZNER_STORAGE_USER}.your-storagebox.de cifs vers=1.0,iocharset=utf8,rw,credentials=/etc/Hetzner/${HETZNER_STORAGE_USER}.your-storagebox.de.credentials,uid=1000,gid=1000,file_mode=0660,dir_mode=0770 0 0" \
     | sudo tee -a /etc/fstab
 else
   echo "INFO: Hetzner Storage Box ${HETZNER_STORAGE_USER} is already present in /etc/fstab. Nothing to do."
